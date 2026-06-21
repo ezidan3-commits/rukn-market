@@ -79,9 +79,11 @@ export default function ProductDetailPage() {
         ) : (
           <div className="w-full h-full flex items-center justify-center text-7xl">🛍️</div>
         )}
-        {product.quantity <= 3 && (
-          <span className="absolute top-3 right-3 bg-amber-500 text-white text-sm font-bold px-3 py-1 rounded-lg">
-            آخر {product.quantity} قطع
+        {product.quantity > 0 && (
+          <span className={`absolute top-3 right-3 text-white text-sm font-bold px-3 py-1 rounded-lg ${
+            product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
+          }`}>
+            {product.quantity <= 3 ? `آخر ${product.quantity} قطع` : `${product.quantity} قطعة`}
           </span>
         )}
       </div>

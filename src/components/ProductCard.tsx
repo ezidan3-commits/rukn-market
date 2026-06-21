@@ -32,9 +32,11 @@ export default function ProductCard({ product }: { product: Product }) {
           ) : (
             <div className="w-full h-full flex items-center justify-center text-5xl">🛍️</div>
           )}
-          {product.quantity <= 3 && product.quantity > 0 && (
-            <span className="absolute top-2 right-2 bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-lg">
-              آخر {product.quantity} قطع
+          {product.quantity > 0 && (
+            <span className={`absolute top-2 right-2 text-white text-xs font-bold px-2 py-1 rounded-lg ${
+              product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
+            }`}>
+              {product.quantity <= 3 ? `آخر ${product.quantity} قطع` : `${product.quantity} قطعة`}
             </span>
           )}
         </div>
