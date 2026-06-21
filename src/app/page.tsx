@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product } from '@/lib/types'
 import ProductCard from '@/components/ProductCard'
@@ -11,21 +11,22 @@ export default function HomePage() {
   const [category, setCategory] = useState<string>('الكل')
 
   useEffect(() => {
-    async function load() {
-      await ensureAuth()
+    let unsub: (() => void) | undefined
+    ensureAuth().then(() => {
       const q = query(
         collection(db, 'products'),
         where('visibleInMarket', '==', true)
       )
-      const snap = await getDocs(q)
-      const list = snap.docs
-        .map(d => ({ id: d.id, ...d.data() } as Product))
-        .filter(p => p.quantity > 0)
-        .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
-      setProducts(list)
-      setLoading(false)
-    }
-    load()
+      unsub = onSnapshot(q, snap => {
+        const list = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Product))
+          .filter(p => p.quantity > 0)
+          .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+        setProducts(list)
+        setLoading(false)
+      })
+    })
+    return () => unsub?.()
   }, [])
 
   const categories = ['الكل', ...Array.from(new Set(products.map(p => p.marketCategory).filter(Boolean)))]

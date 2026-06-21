@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product, productImageSrc } from '@/lib/types'
 import { useCart } from '@/context/CartContext'
@@ -20,17 +20,20 @@ export default function ProductDetailPage() {
   const imgSrc = product ? productImageSrc(product) : null
 
   useEffect(() => {
-    async function load() {
-      await ensureAuth()
-      const snap = await getDoc(doc(db, 'products', id))
-      if (snap.exists()) {
-        const p = { id: snap.id, ...snap.data() } as Product
-        if (p.visibleInMarket && p.quantity > 0) setProduct(p)
-        else setProduct(null)
-      }
-      setLoading(false)
-    }
-    load()
+    let unsub: (() => void) | undefined
+    ensureAuth().then(() => {
+      unsub = onSnapshot(doc(db, 'products', id), snap => {
+        if (snap.exists()) {
+          const p = { id: snap.id, ...snap.data() } as Product
+          if (p.visibleInMarket && p.quantity > 0) setProduct(p)
+          else setProduct(null)
+        } else {
+          setProduct(null)
+        }
+        setLoading(false)
+      })
+    })
+    return () => unsub?.()
   }, [id])
 
   const money = (n: number) =>
