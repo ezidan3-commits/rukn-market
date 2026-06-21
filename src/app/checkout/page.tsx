@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
+import { collection, serverTimestamp, Timestamp, runTransaction, doc } from 'firebase/firestore'
 import { db, ensureAuth } from '@/lib/firebase'
 import { useCart } from '@/context/CartContext'
 import { PaymentMethod, PAYMENT_OPTIONS, CheckoutForm } from '@/lib/types'
@@ -51,31 +51,56 @@ export default function CheckoutPage() {
     try {
       await ensureAuth()
       const now = Timestamp.now()
-      await addDoc(collection(db, 'orders'), {
-        customerName: form.customerName.trim(),
-        customerPhone: form.customerPhone.trim(),
-        city: form.city.trim(),
-        items: items.map(i => ({
-          productId: i.product.id,
-          quantity: i.quantity,
-          discountValue: 0,
-          discountType: 'fixed',
-        })),
-        status: 'newOrder',
-        notes: form.notes.trim(),
-        createdBy: 'ماركت - ' + form.customerName.trim(),
-        createdAt: now,
-        isVip: false,
-        trackingNumber: '',
-        paymentMethod: form.payment,
-        updatedAt: serverTimestamp(),
+
+      await runTransaction(db, async (tx) => {
+        // read all product docs and check stock
+        const productRefs = items.map(i => doc(db, 'products', i.product.id))
+        const productSnaps = await Promise.all(productRefs.map(r => tx.get(r)))
+
+        for (let i = 0; i < items.length; i++) {
+          const snap = productSnaps[i]
+          const available = (snap.data()?.quantity ?? 0) as number
+          if (available < items[i].quantity) {
+            throw new Error(`المنتج "${items[i].product.name}" لم يعد متاحاً بالكمية المطلوبة`)
+          }
+        }
+
+        // deduct quantities
+        for (let i = 0; i < items.length; i++) {
+          const snap = productSnaps[i]
+          const available = (snap.data()?.quantity ?? 0) as number
+          tx.update(productRefs[i], { quantity: available - items[i].quantity })
+        }
+
+        // create order
+        const orderRef = doc(collection(db, 'orders'))
+        tx.set(orderRef, {
+          customerName: form.customerName.trim(),
+          customerPhone: form.customerPhone.trim(),
+          city: form.city.trim(),
+          items: items.map(i => ({
+            productId: i.product.id,
+            quantity: i.quantity,
+            discountValue: 0,
+            discountType: 'fixed',
+          })),
+          status: 'newOrder',
+          notes: form.notes.trim(),
+          createdBy: 'ماركت - ' + form.customerName.trim(),
+          createdAt: now,
+          isVip: false,
+          trackingNumber: '',
+          paymentMethod: form.payment,
+          updatedAt: serverTimestamp(),
+        })
       })
 
       clear()
       router.push('/order-success')
-    } catch {
+    } catch (err: unknown) {
       setSubmitting(false)
-      alert('حدث خطأ أثناء إرسال الطلب. تأكد من اتصالك بالإنترنت وحاول مرة أخرى.')
+      const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء إرسال الطلب'
+      alert(msg + '\n\nتأكد من اتصالك بالإنترنت وحاول مرة أخرى.')
     }
   }
 
