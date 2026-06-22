@@ -1,9 +1,12 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product } from '@/lib/types'
 import ProductCard from '@/components/ProductCard'
+
+type SortOption = 'default' | 'price_asc' | 'price_desc'
 
 function SkeletonCard() {
   return (
@@ -26,6 +29,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState<string>('الكل')
   const [search, setSearch] = useState<string>('')
+  const [sort, setSort] = useState<SortOption>('default')
 
   useEffect(() => {
     let unsub: (() => void) | undefined
@@ -38,7 +42,6 @@ export default function HomePage() {
         const list = snap.docs
           .map(d => ({ id: d.id, ...d.data() } as Product))
           .filter(p => p.quantity > 0)
-          .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
         setProducts(list)
         setLoading(false)
       })
@@ -47,9 +50,15 @@ export default function HomePage() {
   }, [])
 
   const categories = ['الكل', ...Array.from(new Set(products.map(p => p.marketCategory).filter(Boolean)))]
+
   const filtered = products
     .filter(p => category === 'الكل' || p.marketCategory === category)
     .filter(p => !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => {
+      if (sort === 'price_asc') return a.sellEgp - b.sellEgp
+      if (sort === 'price_desc') return b.sellEgp - a.sellEgp
+      return a.name.localeCompare(b.name, 'ar')
+    })
 
   return (
     <div>
@@ -59,10 +68,12 @@ export default function HomePage() {
         <div className="absolute -bottom-6 -left-6 w-24 h-24 rounded-full bg-gold/10" />
         <div className="absolute top-2 left-10 w-14 h-14 rounded-full bg-white/5" />
         <div className="absolute bottom-3 right-16 w-8 h-8 rounded-full bg-gold/20" />
-        <div className="relative z-10">
-          <p className="text-gold/70 text-xs font-semibold tracking-widest mb-1 uppercase">Welcome</p>
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gold/50 mb-3 bg-white/10">
+            <Image src="/logo.png" alt="ستور السعاده" width={64} height={64} className="object-contain w-full h-full" />
+          </div>
           <h1 className="text-white font-black text-3xl mb-1">ستور السعاده</h1>
-          <div className="flex items-center justify-center gap-2 mt-2">
+          <div className="flex items-center justify-center gap-2 mt-1">
             <div className="w-8 h-px bg-gold/50" />
             <p className="text-gold text-sm font-semibold">تسوق بسعادة وراحة</p>
             <div className="w-8 h-px bg-gold/50" />
@@ -111,9 +122,21 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Count */}
+      {/* Count + Sort */}
       {!loading && (
-        <p className="text-xs text-gray-400 mb-3">{filtered.length} منتج متاح</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-gray-400">{filtered.length} منتج متاح</p>
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value as SortOption)}
+            className="text-xs font-bold text-navy border border-gold/40 rounded-full py-1.5 px-3 bg-white outline-none focus:border-gold cursor-pointer"
+            dir="rtl"
+          >
+            <option value="default">ترتيب: افتراضي</option>
+            <option value="price_asc">الأرخص أولاً</option>
+            <option value="price_desc">الأغلى أولاً</option>
+          </select>
+        </div>
       )}
 
       {/* Skeleton / Products / Empty */}
@@ -134,7 +157,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="mt-12 pt-6 border-t border-gold/20 text-center pb-6">
         <p className="font-black text-navy text-lg mb-1">ستور السعاده</p>
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex items-center justify-center gap-4 mt-2">
           <a
             href="https://wa.me/201210729036"
             target="_blank"
