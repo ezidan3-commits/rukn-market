@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import ProductDetailClient from './ProductDetailClient'
 
 const PROJECT_ID = 'store-manager-8d619'
+const SITE_URL = 'https://rukn-market.vercel.app'
 
 async function fetchProduct(id: string) {
   try {
@@ -36,9 +37,8 @@ export async function generateMetadata(
   const description = product.marketDescription
     ? `${price} • ${product.marketDescription}`
     : `${product.name} بسعر ${price}`
-  const images = product.imageUrl
-    ? [{ url: product.imageUrl, alt: product.name, width: 800, height: 800 }]
-    : []
+  const imageUrl = product.imageUrl || `${SITE_URL}/logo.png`
+  const images = [{ url: imageUrl, alt: product.name, width: 800, height: 800 }]
 
   return {
     title,
