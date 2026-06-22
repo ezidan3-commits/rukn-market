@@ -15,6 +15,20 @@ export const metadata: Metadata = {
     statusBarStyle: 'black-translucent',
     title: 'ستور السعاده',
   },
+  openGraph: {
+    title: 'ستور السعاده',
+    description: 'تسوق بسعادة وراحة — منتجات مميزة بأسعار رائعة',
+    type: 'website',
+    locale: 'ar_EG',
+    siteName: 'ستور السعاده',
+    images: [{ url: '/logo.png', width: 512, height: 512, alt: 'ستور السعاده' }],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'ستور السعاده',
+    description: 'تسوق بسعادة وراحة',
+    images: ['/logo.png'],
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
