@@ -3,6 +3,7 @@ import './globals.css'
 import { CartProvider } from '@/context/CartContext'
 import Header from '@/components/Header'
 import BackToTop from '@/components/BackToTop'
+import InstallPWA from '@/components/InstallPWA'
 
 export const metadata: Metadata = {
   title: 'ستور السعاده',
@@ -36,6 +37,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           {/* Floating social buttons */}
           <div className="fixed bottom-6 left-4 z-50 flex flex-col gap-3">
+            {/* Install PWA */}
+            <InstallPWA />
             {/* Facebook */}
             <a
               href="https://www.facebook.com/groups/618310885443604/?ref=share&mibextid=NSMWBT"
