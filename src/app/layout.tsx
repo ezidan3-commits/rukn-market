@@ -2,21 +2,37 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { CartProvider } from '@/context/CartContext'
 import Header from '@/components/Header'
+import BackToTop from '@/components/BackToTop'
 
 export const metadata: Metadata = {
   title: 'ستور السعاده',
   description: 'ستور السعاده — تسوق بسعادة وراحة',
+  manifest: '/manifest.json',
+  themeColor: '#071f3d',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'ستور السعاده',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ar" dir="rtl">
+      <head>
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+      </head>
       <body className="min-h-screen bg-cream font-arabic">
         <CartProvider>
           <Header />
           <main className="max-w-5xl mx-auto px-4 pb-20 pt-4">
             {children}
           </main>
+
+          <BackToTop />
 
           {/* Floating social buttons */}
           <div className="fixed bottom-6 left-4 z-50 flex flex-col gap-3">

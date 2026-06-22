@@ -96,6 +96,24 @@ export default function CheckoutPage() {
       })
 
       clear()
+
+      // Send WhatsApp notification to store owner
+      const waLines = [
+        '🛍️ طلب جديد من ستور السعاده',
+        '',
+        `👤 الاسم: ${form.customerName.trim()}`,
+        `📞 الهاتف: ${form.customerPhone.trim()}`,
+        `📍 المدينة: ${form.city.trim()}`,
+        '',
+        '🧾 المنتجات:',
+        ...items.map(i => `• ${i.product.name} × ${i.quantity} = ${money(i.product.sellEgp * i.quantity)}`),
+        '',
+        `💰 الإجمالي: ${money(total)}`,
+        `💳 الدفع: ${PAYMENT_OPTIONS.find(o => o.method === form.payment)?.label ?? form.payment}`,
+        form.notes.trim() ? `📝 ملاحظات: ${form.notes.trim()}` : '',
+      ].filter(Boolean).join('\n')
+
+      window.open(`https://wa.me/201210729036?text=${encodeURIComponent(waLines)}`, '_blank')
       router.push('/order-success')
     } catch (err: unknown) {
       setSubmitting(false)
