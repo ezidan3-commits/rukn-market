@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product } from '@/lib/types'
@@ -69,9 +68,6 @@ export default function HomePage() {
         <div className="absolute top-2 left-10 w-14 h-14 rounded-full bg-white/5" />
         <div className="absolute bottom-3 right-16 w-8 h-8 rounded-full bg-gold/20" />
         <div className="relative z-10 flex flex-col items-center">
-          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-gold/50 mb-3 bg-white/10">
-            <Image src="/logo.png" alt="ستور السعاده" width={64} height={64} className="object-contain w-full h-full" />
-          </div>
           <h1 className="text-white font-black text-3xl mb-1">ستور السعاده</h1>
           <div className="flex items-center justify-center gap-2 mt-1">
             <div className="w-8 h-px bg-gold/50" />
