@@ -1,9 +1,10 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, onSnapshot, collection, query, where, getDocs, limit } from 'firebase/firestore'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product, productImageSrc } from '@/lib/types'
 import { useCart } from '@/context/CartContext'
@@ -16,6 +17,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<Product | null>(null)
   const [related, setRelated] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const fetchedCategory = useRef<string | null>(null)
 
   const cartItem = items.find(i => i.product.id === id)
   const qty = cartItem?.quantity ?? 0
@@ -29,11 +31,13 @@ export default function ProductDetailPage() {
           const p = { id: snap.id, ...snap.data() } as Product
           if (p.visibleInMarket && p.quantity > 0) {
             setProduct(p)
-            if (p.marketCategory) {
+            if (p.marketCategory && fetchedCategory.current !== p.marketCategory) {
+              fetchedCategory.current = p.marketCategory
               getDocs(query(
                 collection(db, 'products'),
                 where('visibleInMarket', '==', true),
-                where('marketCategory', '==', p.marketCategory)
+                where('marketCategory', '==', p.marketCategory),
+                limit(5)
               )).then(result => {
                 const list = result.docs
                   .map(d => ({ id: d.id, ...d.data() } as Product))
