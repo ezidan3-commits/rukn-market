@@ -37,7 +37,7 @@ export async function generateMetadata(
   const description = product.marketDescription
     ? `${price} • ${product.marketDescription}`
     : `${product.name} بسعر ${price}`
-  const imageUrl = product.imageUrl || `${SITE_URL}/logo.png`
+  const imageUrl = product.imageUrl || `${SITE_URL}/api/product-image/${params.id}`
   const images = [{ url: imageUrl, alt: product.name, width: 800, height: 800 }]
 
   return {
