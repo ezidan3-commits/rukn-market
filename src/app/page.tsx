@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { useEffect, useState, useMemo } from 'react'
+import { collection, query, where, onSnapshot, limit } from 'firebase/firestore'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product } from '@/lib/types'
 import ProductCard from '@/components/ProductCard'
@@ -35,7 +35,8 @@ export default function HomePage() {
     ensureAuth().then(() => {
       const q = query(
         collection(db, 'products'),
-        where('visibleInMarket', '==', true)
+        where('visibleInMarket', '==', true),
+        limit(100)
       )
       unsub = onSnapshot(q, snap => {
         const list = snap.docs
@@ -48,16 +49,22 @@ export default function HomePage() {
     return () => unsub?.()
   }, [])
 
-  const categories = ['الكل', ...Array.from(new Set(products.map(p => p.marketCategory).filter(Boolean)))]
+  const categories = useMemo(
+    () => ['الكل', ...Array.from(new Set(products.map(p => p.marketCategory).filter(Boolean)))],
+    [products]
+  )
 
-  const filtered = products
-    .filter(p => category === 'الكل' || p.marketCategory === category)
-    .filter(p => !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()))
-    .sort((a, b) => {
-      if (sort === 'price_asc') return a.sellEgp - b.sellEgp
-      if (sort === 'price_desc') return b.sellEgp - a.sellEgp
-      return a.name.localeCompare(b.name, 'ar')
-    })
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return products
+      .filter(p => category === 'الكل' || p.marketCategory === category)
+      .filter(p => !q || p.name.toLowerCase().includes(q))
+      .sort((a, b) => {
+        if (sort === 'price_asc') return a.sellEgp - b.sellEgp
+        if (sort === 'price_desc') return b.sellEgp - a.sellEgp
+        return a.name.localeCompare(b.name, 'ar')
+      })
+  }, [products, category, search, sort])
 
   return (
     <div>
