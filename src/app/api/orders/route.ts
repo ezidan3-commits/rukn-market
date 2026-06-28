@@ -145,7 +145,12 @@ export async function POST(request: Request) {
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'حدث خطأ أثناء إنشاء الطلب'
-    const status = message.startsWith('Missing server environment variable') ? 500 : 400
-    return NextResponse.json({ error: message }, { status })
+    if (message.startsWith('Missing server environment variable')) {
+      return NextResponse.json(
+        { error: 'إعدادات الطلبات غير مكتملة على السيرفر. من فضلك تواصل مع إدارة المتجر.' },
+        { status: 500 }
+      )
+    }
+    return NextResponse.json({ error: message }, { status: 400 })
   }
 }
