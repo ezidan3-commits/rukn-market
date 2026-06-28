@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { CartProvider } from '@/context/CartContext'
 import Header from '@/components/Header'
@@ -6,15 +6,35 @@ import BackToTop from '@/components/BackToTop'
 import InstallPWA from '@/components/InstallPWA'
 
 export const metadata: Metadata = {
-  title: 'ستور السعاده',
-  description: 'ستور السعاده — تسوق بسعادة وراحة',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
+  title: {
+    default: 'الركن الخليجي',
+    template: '%s | الركن الخليجي',
+  },
+  description: 'الركن الخليجي - تسوق منتجاتك بسهولة وراحة',
   manifest: '/manifest.json',
-  themeColor: '#071f3d',
+  openGraph: {
+    type: 'website',
+    siteName: 'الركن الخليجي',
+    title: 'الركن الخليجي',
+    description: 'تسوق منتجاتك بسهولة وراحة',
+    images: ['/logo.png'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'الركن الخليجي',
+    description: 'تسوق منتجاتك بسهولة وراحة',
+    images: ['/logo.png'],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'ستور السعاده',
+    title: 'الركن الخليجي',
   },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#071f3d',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -29,17 +49,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-cream font-arabic">
         <CartProvider>
           <Header />
-          <main className="max-w-5xl mx-auto px-4 pb-20 pt-4">
+          <main className="max-w-5xl mx-auto px-4 pb-28 pt-4">
             {children}
           </main>
 
           <BackToTop />
 
-          {/* Floating social buttons */}
           <div className="fixed bottom-6 left-4 z-50 flex flex-col gap-3">
-            {/* Install PWA */}
             <InstallPWA />
-            {/* Facebook */}
             <a
               href="https://www.facebook.com/groups/618310885443604/?ref=share&mibextid=NSMWBT"
               target="_blank"
@@ -51,7 +68,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
               </svg>
             </a>
-            {/* WhatsApp */}
             <a
               href="https://wa.me/201210729036"
               target="_blank"

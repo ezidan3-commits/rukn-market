@@ -1,7 +1,7 @@
 {
-  "name": "ستور السعاده",
-  "short_name": "ستور السعاده",
-  "description": "تسوق بسعادة وراحة",
+  "name": "الركن الخليجي",
+  "short_name": "الركن الخليجي",
+  "description": "تسوق منتجاتك بسهولة وراحة",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F8F6F0",

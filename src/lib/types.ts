@@ -6,16 +6,27 @@ export interface Product {
   costEgp: number
   quantity: number
   imageUrl: string
+  imageUrls?: string[]
+  images?: string[]
   imageBase64?: string
   visibleInMarket: boolean
   marketCategory: string
   marketDescription: string
 }
 
+export function productImageSources(product: Product): string[] {
+  const sources = [
+    ...(Array.isArray(product.imageUrls) ? product.imageUrls : []),
+    ...(Array.isArray(product.images) ? product.images : []),
+    product.imageUrl,
+    product.imageBase64 ? `data:image/jpeg;base64,${product.imageBase64}` : '',
+  ]
+
+  return Array.from(new Set(sources.filter(Boolean)))
+}
+
 export function productImageSrc(product: Product): string | null {
-  if (product.imageUrl) return product.imageUrl
-  if (product.imageBase64) return `data:image/jpeg;base64,${product.imageBase64}`
-  return null
+  return productImageSources(product)[0] ?? null
 }
 
 export interface CartItem {

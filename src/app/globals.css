@@ -16,15 +16,15 @@ body {
 }
 
 .btn-primary {
-  @apply bg-gold text-navy font-bold py-3 px-6 rounded-xl
+  @apply bg-gold text-navy font-bold py-3 px-6 rounded-lg
          hover:bg-gold-dark transition-all duration-200 active:scale-95;
 }
 
 .btn-navy {
-  @apply bg-navy text-white font-bold py-3 px-6 rounded-xl
+  @apply bg-navy text-white font-bold py-3 px-6 rounded-lg
          hover:bg-navy-light transition-all duration-200 active:scale-95;
 }
 
 .card {
-  @apply bg-white rounded-2xl gold-border shadow-sm;
+  @apply bg-white rounded-lg gold-border shadow-sm;
 }
