@@ -29,10 +29,10 @@ export default function InstallPWA() {
   return (
     <div className="relative">
       {showTip && (
-        <div className="absolute bottom-16 left-0 w-56 bg-navy text-white text-xs rounded-2xl p-3 shadow-xl leading-relaxed">
+        <div className="absolute bottom-16 left-0 w-56 bg-navy text-white text-xs rounded-lg p-3 shadow-xl leading-relaxed">
           <p className="font-black mb-1">تثبيت التطبيق</p>
           <p className="text-white/80">
-            <span className="font-bold text-gold">Android:</span> افتح القائمة ⋮ ثم اختر &quot;إضافة إلى الشاشة الرئيسية&quot;
+            <span className="font-bold text-gold">Android:</span> افتح القائمة ثم اختر &quot;إضافة إلى الشاشة الرئيسية&quot;
           </p>
           <p className="text-white/80 mt-1">
             <span className="font-bold text-gold">iPhone:</span> اضغط على زر المشاركة ثم &quot;إضافة إلى الشاشة الرئيسية&quot;
@@ -43,8 +43,8 @@ export default function InstallPWA() {
 
       <button
         onClick={handleClick}
-        aria-label="حمّل التطبيق على هاتفك"
-        title="حمّل التطبيق"
+        aria-label="حمل التطبيق على هاتفك"
+        title="حمل التطبيق"
         className="bg-navy hover:bg-navy-light text-white rounded-full w-14 h-14 flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 active:scale-95 hover:scale-110"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

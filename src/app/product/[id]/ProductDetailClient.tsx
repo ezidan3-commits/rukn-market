@@ -1,26 +1,39 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { doc, onSnapshot, collection, query, where, getDocs, limit } from 'firebase/firestore'
-import { db, ensureAuth } from '@/lib/firebase'
-import { Product, productImageSrc } from '@/lib/types'
-import { useCart } from '@/context/CartContext'
+import { useRouter } from 'next/navigation'
+import { collection, doc, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
+import { useCart } from '@/context/CartContext'
+import { db, ensureAuth } from '@/lib/firebase'
+import { trackProductEvent } from '@/lib/analytics'
+import { Product, productImageSources } from '@/lib/types'
 
-export default function ProductDetailClient() {
-  const { id } = useParams<{ id: string }>()
+function ProductFallback({ large = false }: { large?: boolean }) {
+  return (
+    <div className="w-full h-full flex items-center justify-center text-navy/35 bg-gradient-to-br from-white to-cream">
+      <svg xmlns="http://www.w3.org/2000/svg" className={large ? 'w-24 h-24' : 'w-12 h-12'} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.4}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.36-1.36 1.1 10.43A2.25 2.25 0 0 1 18.47 22H5.53a2.25 2.25 0 0 1-2.24-2.43l1.1-10.43A2.25 2.25 0 0 1 6.63 7.1h10.74a2.25 2.25 0 0 1 2.24 2.04Z" />
+      </svg>
+    </div>
+  )
+}
+
+export default function ProductDetailClient({ id }: { id: string }) {
   const router = useRouter()
   const { add, remove, updateQty, items } = useCart()
   const [product, setProduct] = useState<Product | null>(null)
   const [related, setRelated] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedImage, setSelectedImage] = useState('')
+  const trackedView = useRef<string | null>(null)
   const fetchedCategory = useRef<string | null>(null)
 
   const cartItem = items.find(i => i.product.id === id)
   const qty = cartItem?.quantity ?? 0
-  const imgSrc = product ? productImageSrc(product) : null
+  const images = product ? productImageSources(product) : []
+  const activeImage = selectedImage || images[0] || ''
 
   useEffect(() => {
     let unsub: (() => void) | undefined
@@ -30,6 +43,11 @@ export default function ProductDetailClient() {
           const p = { id: snap.id, ...snap.data() } as Product
           if (p.visibleInMarket && p.quantity > 0) {
             setProduct(p)
+            setSelectedImage(current => current || productImageSources(p)[0] || '')
+            if (trackedView.current !== p.id) {
+              trackedView.current = p.id
+              trackProductEvent(p, 'view')
+            }
             if (p.marketCategory && fetchedCategory.current !== p.marketCategory) {
               fetchedCategory.current = p.marketCategory
               getDocs(query(
@@ -60,10 +78,16 @@ export default function ProductDetailClient() {
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
 
+  const addToCart = () => {
+    if (!product) return
+    add(product)
+    trackProductEvent(product, 'cart_add')
+  }
+
   const shareOnWhatsApp = () => {
     if (!product) return
     const url = window.location.href
-    const text = `شوف المنتج ده 👇\n*${product.name}*\n${money(product.sellEgp)}\n\n${url}`
+    const text = `شوف المنتج ده\n*${product.name}*\n${money(product.sellEgp)}\n\n${url}`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
@@ -77,101 +101,173 @@ export default function ProductDetailClient() {
 
   if (!product) {
     return (
-      <div className="text-center py-16">
-        <p className="text-2xl mb-4">😕</p>
-        <p className="font-bold text-navy mb-4">المنتج غير متاح</p>
+      <div className="max-w-md mx-auto bg-white border border-gold/30 rounded-lg text-center py-16 px-4">
+        <p className="font-black text-navy text-xl mb-2">المنتج غير متاح</p>
+        <p className="text-gray-500 text-sm mb-6">ربما تم إخفاء المنتج أو نفدت الكمية المتاحة.</p>
         <Link href="/" className="btn-primary">العودة للمتجر</Link>
       </div>
     )
   }
 
   return (
-    <div className="max-w-lg mx-auto">
-      <button onClick={() => router.back()} className="flex items-center gap-1 text-navy font-semibold text-sm mb-4 hover:text-gold">
+    <div className="space-y-6">
+      <button onClick={() => router.back()} className="inline-flex items-center gap-1 text-navy font-bold text-sm hover:text-gold">
         <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
         العودة
       </button>
 
-      <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-gray-50 mb-4">
-        {imgSrc ? (
-          imgSrc.startsWith('data:') ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imgSrc} alt={product.name} className="w-full h-full object-cover" />
-          ) : (
-            <Image src={imgSrc} alt={product.name} fill className="object-cover" />
-          )
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-7xl">🛍️</div>
-        )}
-        {product.quantity > 0 && (
-          <span className={`absolute top-3 right-3 text-white text-sm font-bold px-3 py-1 rounded-lg ${
-            product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
-          }`}>
-            {product.quantity <= 3 ? `آخر ${product.quantity} قطع` : `${product.quantity} قطعة`}
-          </span>
-        )}
-        <button
-          onClick={shareOnWhatsApp}
-          aria-label="مشاركة على واتساب"
-          className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-green-600 rounded-full w-10 h-10 flex items-center justify-center shadow-md hover:bg-white transition-all active:scale-95"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.867-2.031-.967-.272-.099-.47-.148-.669.15-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
-          </svg>
-        </button>
-      </div>
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_410px] lg:items-start">
+        <div className="space-y-3">
+          <div className="relative aspect-square overflow-hidden rounded-lg bg-white border border-gold/30">
+            {activeImage ? (
+              activeImage.startsWith('data:') ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={activeImage} alt={product.name} className="w-full h-full object-cover" />
+              ) : (
+                <Image src={activeImage} alt={product.name} fill className="object-cover" priority />
+              )
+            ) : (
+              <ProductFallback large />
+            )}
 
-      <div className="card p-5 mb-4">
-        {product.marketCategory && (
-          <p className="text-xs text-gold font-bold mb-1">{product.marketCategory}</p>
-        )}
-        <h1 className="text-navy font-black text-xl mb-2">{product.name}</h1>
-        <p className="text-gold font-black text-2xl mb-3">{money(product.sellEgp)}</p>
-        {product.marketDescription && (
-          <p className="text-gray-600 text-sm leading-relaxed">{product.marketDescription}</p>
-        )}
-      </div>
-
-      <div className="card p-4 mb-8">
-        {qty === 0 ? (
-          <button onClick={() => add(product)} className="btn-primary w-full text-center">
-            أضف للسلة
-          </button>
-        ) : (
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 flex-1 justify-center">
-              <button
-                onClick={() => qty === 1 ? remove(product.id) : updateQty(product.id, qty - 1)}
-                className="w-10 h-10 rounded-full bg-navy text-white font-black text-xl flex items-center justify-center"
-              >
-                −
-              </button>
-              <span className="text-navy font-black text-xl w-8 text-center">{qty}</span>
-              <button
-                onClick={() => updateQty(product.id, qty + 1)}
-                disabled={qty >= product.quantity}
-                className="w-10 h-10 rounded-full bg-gold text-navy font-black text-xl flex items-center justify-center disabled:opacity-40"
-              >
-                +
-              </button>
-            </div>
-            <Link href="/cart" className="btn-navy text-center">
-              عرض السلة
-            </Link>
+            <span className={`absolute top-3 right-3 text-white text-sm font-bold px-3 py-1 rounded-md shadow-sm ${
+              product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
+            }`}>
+              {product.quantity <= 3 ? `آخر ${product.quantity} قطع` : `${product.quantity} قطعة متاحة`}
+            </span>
           </div>
-        )}
-      </div>
 
-      {related.length > 0 && (
-        <div className="mb-8">
-          <h2 className="font-black text-navy text-lg mb-3">منتجات مشابهة</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {related.map(p => <ProductCard key={p.id} product={p} />)}
+          {images.length > 1 && (
+            <div className="grid grid-cols-5 gap-2">
+              {images.slice(0, 5).map(image => (
+                <button
+                  key={image}
+                  type="button"
+                  onClick={() => setSelectedImage(image)}
+                  className={`relative aspect-square overflow-hidden rounded-lg border bg-white ${
+                    image === activeImage ? 'border-navy ring-2 ring-navy/15' : 'border-gold/30'
+                  }`}
+                  aria-label="عرض صورة المنتج"
+                >
+                  {image.startsWith('data:') ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={image} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Image src={image} alt="" fill className="object-cover" sizes="80px" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4 lg:sticky lg:top-24">
+          <div className="card p-5">
+            {product.marketCategory && (
+              <p className="text-xs text-gold font-black mb-2">{product.marketCategory}</p>
+            )}
+            <h1 className="text-navy font-black text-2xl leading-8 mb-3">{product.name}</h1>
+            <p className="text-gold font-black text-3xl mb-4">{money(product.sellEgp)}</p>
+            {product.marketDescription ? (
+              <p className="text-gray-600 text-sm leading-7">{product.marketDescription}</p>
+            ) : (
+              <p className="text-gray-500 text-sm leading-7">منتج متاح للطلب من الركن الخليجي. أضفه للسلة وأكمل بياناتك لتأكيد الطلب.</p>
+            )}
+          </div>
+
+          <div className="card p-4">
+            <div className="grid grid-cols-3 gap-2 text-center mb-4">
+              <div className="rounded-lg bg-cream border border-gold/20 p-3">
+                <p className="text-navy font-black text-lg">{product.quantity}</p>
+                <p className="text-[11px] text-gray-500">متاح</p>
+              </div>
+              <div className="rounded-lg bg-cream border border-gold/20 p-3">
+                <p className="text-navy font-black text-lg">سريع</p>
+                <p className="text-[11px] text-gray-500">تأكيد</p>
+              </div>
+              <div className="rounded-lg bg-cream border border-gold/20 p-3">
+                <p className="text-navy font-black text-lg">آمن</p>
+                <p className="text-[11px] text-gray-500">طلبك</p>
+              </div>
+            </div>
+
+            {qty === 0 ? (
+              <button onClick={addToCart} className="btn-primary w-full text-center">
+                أضف للسلة
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    onClick={() => qty === 1 ? remove(product.id) : updateQty(product.id, qty - 1)}
+                    className="w-11 h-11 rounded-lg bg-navy text-white font-black text-xl flex items-center justify-center"
+                    aria-label="تقليل الكمية"
+                  >
+                    −
+                  </button>
+                  <div className="flex-1 text-center">
+                    <p className="text-navy font-black text-2xl">{qty}</p>
+                    <p className="text-xs text-gray-500">في السلة</p>
+                  </div>
+                  <button
+                    onClick={() => updateQty(product.id, qty + 1)}
+                    disabled={qty >= product.quantity}
+                    className="w-11 h-11 rounded-lg bg-gold text-navy font-black text-xl flex items-center justify-center disabled:opacity-40"
+                    aria-label="زيادة الكمية"
+                  >
+                    +
+                  </button>
+                </div>
+                <Link href="/cart" className="btn-navy block text-center">
+                  عرض السلة
+                </Link>
+              </div>
+            )}
+
+            <button
+              onClick={shareOnWhatsApp}
+              className="w-full mt-3 border border-green-500 text-green-700 bg-green-50 hover:bg-green-100 font-bold py-3 px-4 rounded-lg transition-colors"
+            >
+              مشاركة المنتج على واتساب
+            </button>
           </div>
         </div>
+      </section>
+
+      {related.length > 0 && (
+        <section>
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <h2 className="font-black text-navy text-xl">منتجات مشابهة</h2>
+              <p className="text-gray-500 text-xs mt-1">اختيارات قريبة من نفس القسم</p>
+            </div>
+            <Link href="/" className="text-sm font-bold text-navy hover:text-gold">كل المنتجات</Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {related.map(p => <ProductCard key={p.id} product={p} />)}
+          </div>
+        </section>
       )}
+
+      <div className="fixed inset-x-0 bottom-0 z-50 bg-white border-t border-gold/30 p-3 shadow-[0_-8px_24px_rgba(7,31,61,0.12)] lg:hidden">
+        <div className="max-w-5xl mx-auto flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-gray-500 truncate">{product.name}</p>
+            <p className="font-black text-gold">{money(product.sellEgp)}</p>
+          </div>
+          {qty === 0 ? (
+            <button onClick={addToCart} className="btn-primary py-3 px-5">
+              أضف للسلة
+            </button>
+          ) : (
+            <Link href="/cart" className="btn-navy py-3 px-5">
+              السلة ({qty})
+            </Link>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
