@@ -5,32 +5,25 @@ import { getFirestore } from 'firebase-admin/firestore'
 export const runtime = 'nodejs'
 
 export async function GET() {
-  const projectId = process.env.FIREBASE_PROJECT_ID
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL
-  const rawKey = process.env.FIREBASE_PRIVATE_KEY
-
-  const info = {
-    projectId: projectId ?? 'MISSING',
-    clientEmailDomain: clientEmail ? clientEmail.split('@')[1] : 'MISSING',
-    keyLength: rawKey?.length ?? 0,
-    keyIsBase64: rawKey ? /^[A-Za-z0-9+/=\s]+$/.test(rawKey.trim()) : false,
-    decodedStart: '',
+  const b64 = process.env.FIREBASE_SERVICE_ACCOUNT_B64
+  const info: Record<string, unknown> = {
+    hasB64: !!b64,
+    b64Length: b64?.length ?? 0,
     appsCount: getApps().length,
     firestoreTest: '',
     error: '',
   }
 
   try {
-    const privateKey = Buffer.from((rawKey ?? '').trim(), 'base64').toString('utf8')
-    info.decodedStart = privateKey.substring(0, 27)
+    const sa = JSON.parse(Buffer.from((b64 ?? '').trim(), 'base64').toString('utf8'))
+    info.projectId = sa.project_id
+    info.clientEmail = sa.client_email
+    info.keyStart = (sa.private_key as string).substring(0, 27)
 
-    const testApp = initializeApp({
-      credential: cert({ projectId: projectId!, clientEmail: clientEmail!, privateKey }),
-    }, 'debug-test-' + Date.now())
-
+    const testApp = initializeApp({ credential: cert(sa) }, 'debug-' + Date.now())
     const db = getFirestore(testApp)
-    await db.collection('products').limit(1).get()
-    info.firestoreTest = 'SUCCESS'
+    const snap = await db.collection('products').limit(1).get()
+    info.firestoreTest = `SUCCESS - ${snap.size} doc(s)`
   } catch (err) {
     info.error = err instanceof Error ? err.message : String(err)
   }
