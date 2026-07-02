@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useAuth } from '@/context/AuthContext'
+import { DRAFT_KEY, type DraftItem, type EditOrderDraft } from '@/lib/edit-order'
 
 const STATUS_LABEL: Record<string, string> = {
   newOrder: 'أوردر جديد',
@@ -27,7 +28,6 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
 }
 const EDITABLE = ['newOrder', 'preparing']
-export const DRAFT_KEY = 'editOrderDraft'
 
 interface MarketItem { name: string; quantity: number; sellEgp: number }
 interface MyOrder {
@@ -37,8 +37,6 @@ interface MyOrder {
   items?: Array<{ productId: string; quantity: number }>
   marketItems?: MarketItem[]
 }
-export interface DraftItem { productId: string; name: string; sellEgp: number; quantity: number }
-export interface EditOrderDraft { orderId: string; orderNumber: string; draftItems: DraftItem[] }
 
 export default function MyOrdersPage() {
   const { user, loading: authLoading } = useAuth()

@@ -6,7 +6,7 @@ import ProductCard from '@/components/ProductCard'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product, ProductCategory } from '@/lib/types'
-import { DRAFT_KEY, type DraftItem, type EditOrderDraft } from '@/app/my-orders/page'
+import { DRAFT_KEY, type DraftItem, type EditOrderDraft } from '@/lib/edit-order'
 
 type SortOption = 'default' | 'price_asc' | 'price_desc'
 
