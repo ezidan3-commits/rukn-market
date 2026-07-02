@@ -2,8 +2,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore'
-import { db, ensureAuth } from '@/lib/firebase'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { useAuth } from '@/context/AuthContext'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -66,16 +66,21 @@ export default function MyOrdersPage() {
     if (!user) { router.replace('/auth?next=/my-orders'); return }
 
     const load = async () => {
-      await ensureAuth()
-      const snap = await getDocs(
-        query(
-          collection(db, 'orders'),
-          where('customerUid', '==', user.uid),
-          orderBy('createdAt', 'desc')
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db, 'orders'),
+            where('customerUid', '==', user.uid)
+          )
         )
-      )
-      setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() } as MyOrder)))
-      setLoading(false)
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as MyOrder))
+        list.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
+        setOrders(list)
+      } catch (err) {
+        console.error('my-orders load error:', err)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [user, authLoading, router])
