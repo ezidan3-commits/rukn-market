@@ -11,6 +11,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /productCategories/{catId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     match /orders/{orderId} {
       allow read: if isSignedIn();
       allow write: if false;

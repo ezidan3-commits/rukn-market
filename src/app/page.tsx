@@ -1,11 +1,11 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { collection, limit, onSnapshot, query, where } from 'firebase/firestore'
+import { collection, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
-import { Product } from '@/lib/types'
+import { Product, ProductCategory } from '@/lib/types'
 
 type SortOption = 'default' | 'price_asc' | 'price_desc'
 
@@ -25,6 +25,7 @@ function SkeletonCard() {
 export default function HomePage() {
   const { syncWithProducts } = useCart()
   const [products, setProducts] = useState<Product[]>([])
+  const [categoryMap, setCategoryMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState<string>('الكل')
   const [search, setSearch] = useState<string>('')
@@ -32,7 +33,16 @@ export default function HomePage() {
 
   useEffect(() => {
     let unsub: (() => void) | undefined
-    ensureAuth().then(() => {
+    ensureAuth().then(async () => {
+      // Load category names once
+      const catSnap = await getDocs(collection(db, 'productCategories'))
+      const map: Record<string, string> = {}
+      catSnap.docs.forEach(d => {
+        const c = d.data() as ProductCategory
+        map[d.id] = c.name ?? d.id
+      })
+      setCategoryMap(map)
+
       const q = query(
         collection(db, 'products'),
         where('visibleInMarket', '==', true),
@@ -51,22 +61,26 @@ export default function HomePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const categories = useMemo(
-    () => ['الكل', ...Array.from(new Set(products.map(p => p.marketCategory).filter(Boolean)))],
-    [products]
-  )
+  const categories = useMemo(() => {
+    const names = products.map(p => (p.categoryId && categoryMap[p.categoryId]) || p.marketCategory || '')
+    return ['الكل', ...Array.from(new Set(names.filter(Boolean)))]
+  }, [products, categoryMap])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return products
-      .filter(p => category === 'الكل' || p.marketCategory === category)
+      .filter(p => {
+        if (category === 'الكل') return true
+        const cat = (p.categoryId && categoryMap[p.categoryId]) || p.marketCategory || ''
+        return cat === category
+      })
       .filter(p => !q || p.name.toLowerCase().includes(q))
       .sort((a, b) => {
         if (sort === 'price_asc') return a.sellEgp - b.sellEgp
         if (sort === 'price_desc') return b.sellEgp - a.sellEgp
         return a.name.localeCompare(b.name, 'ar')
       })
-  }, [products, category, search, sort])
+  }, [products, category, search, sort, categoryMap])
 
   const lowStockCount = useMemo(
     () => products.filter(p => p.quantity > 0 && p.quantity <= 3).length,

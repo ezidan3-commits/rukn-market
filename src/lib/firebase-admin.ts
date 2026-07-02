@@ -1,4 +1,4 @@
-import { App, cert, getApps, initializeApp } from 'firebase-admin/app'
+import { cert, getApp, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 
 function requiredEnv(name: string) {
@@ -7,21 +7,23 @@ function requiredEnv(name: string) {
   return value
 }
 
-let adminApp: App | undefined
+const APP_NAME = 'gulf-market-admin'
 
 function initAdminApp() {
-  if (adminApp) return adminApp
-  if (getApps().length) return getApps()[0]
+  const existing = getApps().find(a => a.name === APP_NAME)
+  if (existing) return getApp(APP_NAME)
 
-  adminApp = initializeApp({
+  const rawKey = requiredEnv('FIREBASE_PRIVATE_KEY')
+  // Strip surrounding quotes Vercel sometimes wraps the value in, then convert \n → newline
+  const privateKey = rawKey.replace(/^["']|["']$/g, '').replace(/\\n/g, '\n')
+
+  return initializeApp({
     credential: cert({
       projectId: requiredEnv('FIREBASE_PROJECT_ID'),
       clientEmail: requiredEnv('FIREBASE_CLIENT_EMAIL'),
-      privateKey: requiredEnv('FIREBASE_PRIVATE_KEY').replace(/\\n/g, '\n'),
+      privateKey,
     }),
-  })
-
-  return adminApp
+  }, APP_NAME)
 }
 
 export function getAdminDb() {

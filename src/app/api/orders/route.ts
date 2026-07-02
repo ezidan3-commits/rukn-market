@@ -84,17 +84,21 @@ export async function POST(request: Request) {
     const data = parsed.value
     const adminDb = getAdminDb()
 
-    const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000)
-    const recentSnap = await adminDb.collection('orders')
-      .where('customerPhone', '==', data.customerPhone)
-      .where('createdAt', '>', fiveMinutesAgo)
-      .limit(1)
-      .get()
-    if (!recentSnap.empty) {
-      return NextResponse.json(
-        { error: 'لقد أرسلت طلبًا مؤخرًا، يرجى الانتظار قليلًا قبل إرسال طلب جديد' },
-        { status: 429 }
-      )
+    try {
+      const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000)
+      const recentSnap = await adminDb.collection('orders')
+        .where('customerPhone', '==', data.customerPhone)
+        .where('createdAt', '>', fiveMinutesAgo)
+        .limit(1)
+        .get()
+      if (!recentSnap.empty) {
+        return NextResponse.json(
+          { error: 'لقد أرسلت طلبًا مؤخرًا، يرجى الانتظار قليلًا قبل إرسال طلب جديد' },
+          { status: 429 }
+        )
+      }
+    } catch {
+      // composite index not yet created — skip rate limit check silently
     }
     const orderNumber = generateOrderNumber()
     const orderRef = adminDb.collection('orders').doc()

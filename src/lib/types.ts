@@ -12,6 +12,12 @@ export interface Product {
   visibleInMarket: boolean
   marketCategory: string
   marketDescription: string
+  categoryId?: string
+}
+
+export interface ProductCategory {
+  id: string
+  name: string
 }
 
 export function productImageSources(product: Product): string[] {
