@@ -16,7 +16,6 @@ function ProductFallbackIcon({ size = 'w-14 h-14' }: { size?: string }) {
 
 interface Props {
   product: Product
-  // When true the card is in "add to order" mode instead of "add to cart"
   editOrderMode?: boolean
   draftQty?: number
   onAddToOrder?: (product: Product) => void
@@ -27,6 +26,7 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
   const inCart = items.find(i => i.product.id === product.id)
   const imgSrc = productImageSrc(product)
   const [justAdded, setJustAdded] = useState(false)
+  const [liked, setLiked] = useState(false)
 
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
@@ -71,18 +71,42 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
             </div>
           )}
 
+          {/* Availability badge */}
           <span className={`absolute top-2 right-2 text-white text-[11px] font-bold px-2 py-1 rounded-md shadow-sm ${
             product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
           }`}>
             {product.quantity === 1 ? 'آخر قطعة' : product.quantity <= 3 ? `آخر ${product.quantity} قطع` : 'متاح'}
           </span>
 
-          {/* Badge: quantity already in the order draft */}
+          {/* Heart wishlist button — normal mode only */}
+          {!editOrderMode && (
+            <button
+              onClick={e => { e.preventDefault(); setLiked(l => !l) }}
+              aria-label="أضف للمفضلة"
+              className="absolute top-2 left-2 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-md transition-transform active:scale-90 hover:scale-110"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 transition-colors duration-200 ${liked ? 'fill-red-500 text-red-500' : 'fill-none text-gray-400'}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+              </svg>
+            </button>
+          )}
+
+          {/* Draft quantity badge — edit-order mode */}
           {editOrderMode && draftQty > 0 && (
             <span className="absolute top-2 left-2 bg-navy text-white text-[11px] font-black px-2 py-1 rounded-md shadow-sm">
               × {draftQty}
             </span>
           )}
+
+          {/* Price overlay at bottom of image */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-navy/75 via-navy/30 to-transparent px-3 pt-6 pb-2 flex items-end justify-between">
+            <span className="text-white font-black text-base drop-shadow">{money(product.sellEgp)}</span>
+            {!editOrderMode && inCart && (
+              <span className="text-[11px] text-white/90 font-bold bg-gold/80 px-2 py-0.5 rounded-md">
+                × {inCart.quantity}
+              </span>
+            )}
+          </div>
         </div>
       </Link>
 
@@ -91,23 +115,14 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
           <span className="text-[11px] text-gray-500 font-semibold truncate">{product.marketCategory}</span>
         )}
 
-        <Link href={`/product/${product.id}`} className="min-h-[40px]">
+        <Link href={`/product/${product.id}`} className="flex-1">
           <h3 className="font-black text-navy text-sm leading-5 line-clamp-2 hover:text-gold transition-colors">
             {product.name}
           </h3>
         </Link>
 
-        <div className="mt-auto flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-gold font-black text-base">{money(product.sellEgp)}</span>
-            {/* Cart count badge — only in normal mode */}
-            {!editOrderMode && inCart && (
-              <span className="text-[11px] text-navy font-bold bg-navy/5 px-2 py-1 rounded-md">× {inCart.quantity}</span>
-            )}
-          </div>
-
+        <div className="mt-auto">
           {editOrderMode ? (
-            /* Add-to-order button */
             <button
               onClick={handleAddToOrder}
               className={`w-full text-xs font-black py-2.5 px-3 rounded-lg transition-all duration-200 active:scale-[0.98] ${
@@ -121,7 +136,6 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
               {justAdded ? 'تمت الإضافة ✓' : draftQty > 0 ? `أضف قطعة أخرى (${draftQty})` : 'أضف للطلب'}
             </button>
           ) : (
-            /* Normal add-to-cart button */
             <button
               onClick={handleAddToCart}
               className={`w-full text-xs font-black py-2.5 px-3 rounded-lg transition-all duration-200 active:scale-[0.98] ${

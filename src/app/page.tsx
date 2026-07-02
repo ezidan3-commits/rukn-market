@@ -10,6 +10,28 @@ import { DRAFT_KEY, type DraftItem, type EditOrderDraft } from '@/lib/edit-order
 
 type SortOption = 'default' | 'price_asc' | 'price_desc'
 
+const CATEGORY_EMOJI: Record<string, string> = {
+  'الكل':           '🛍️',
+  'عطور':           '🌸',
+  'ملابس':          '👗',
+  'أحذية':          '👠',
+  'حقائب':          '👜',
+  'مجوهرات':        '💍',
+  'إكسسوارات':      '✨',
+  'منزل':           '🏠',
+  'أدوات منزلية':   '🔧',
+  'إلكترونيات':     '📱',
+  'عناية':          '💄',
+  'عناية شخصية':    '💆',
+  'مستلزمات':       '📦',
+  'طعام':           '🍱',
+  'رياضة':          '⚽',
+  'ألعاب':          '🎮',
+  'كتب':            '📚',
+  'هدايا':          '🎁',
+}
+const getCatEmoji = (cat: string) => CATEGORY_EMOJI[cat] ?? '🏷️'
+
 function SkeletonCard() {
   return (
     <div className="card overflow-hidden animate-pulse">
@@ -32,7 +54,6 @@ export default function HomePage() {
   const [search, setSearch] = useState<string>('')
   const [sort, setSort] = useState<SortOption>('default')
 
-  // Edit-order mode (detected from sessionStorage)
   const [editDraft, setEditDraft] = useState<EditOrderDraft | null>(null)
 
   useEffect(() => {
@@ -141,36 +162,58 @@ export default function HomePage() {
         </div>
       )}
 
-      <section className="bg-navy text-white rounded-lg overflow-hidden border border-navy-dark">
-        <div className="p-5 sm:p-6">
+      {/* ── Hero Section (full-width, navy, with wave) ── */}
+      <section className="-mx-4 bg-navy text-white relative overflow-hidden">
+        {/* Subtle dot pattern overlay */}
+        <div
+          className="absolute inset-0 opacity-[0.04] pointer-events-none"
+          style={{
+            backgroundImage: 'radial-gradient(circle, #C9A84C 1px, transparent 1px)',
+            backgroundSize: '28px 28px',
+          }}
+        />
+
+        <div className="relative px-5 pt-7 pb-2">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-gold text-sm font-bold mb-2">تجربة تسوق سريعة ومباشرة</p>
+              <p className="text-gold text-sm font-bold mb-2 flex items-center gap-1.5">
+                <span className="inline-block w-5 h-0.5 bg-gold rounded-full" />
+                تجربة تسوق سريعة ومباشرة
+              </p>
               <h1 className="text-3xl sm:text-4xl font-black leading-tight">الركن الخليجي</h1>
-              <p className="text-white/75 text-sm sm:text-base mt-2 max-w-xl">
+              <p className="text-white/70 text-sm sm:text-base mt-2 max-w-xl">
                 اختار منتجاتك، راجع السلة، وأكد الطلب في خطوات قليلة.
               </p>
             </div>
 
             <div className="grid grid-cols-3 gap-2 min-w-full sm:min-w-[280px]">
-              <div className="rounded-lg bg-white/10 border border-white/10 p-3 text-center">
-                <p className="text-xl font-black">{products.length}</p>
-                <p className="text-[11px] text-white/70">منتج متاح</p>
+              <div className="rounded-xl bg-white/8 border border-white/10 p-3 text-center backdrop-blur-sm">
+                <p className="text-2xl mb-0.5">📦</p>
+                <p className="text-lg font-black leading-none">{products.length}</p>
+                <p className="text-[11px] text-white/60 mt-0.5">منتج</p>
               </div>
-              <div className="rounded-lg bg-white/10 border border-white/10 p-3 text-center">
-                <p className="text-xl font-black">{categories.length}</p>
-                <p className="text-[11px] text-white/70">قسم</p>
+              <div className="rounded-xl bg-white/8 border border-white/10 p-3 text-center backdrop-blur-sm">
+                <p className="text-2xl mb-0.5">🏷️</p>
+                <p className="text-lg font-black leading-none">{categories.length - 1}</p>
+                <p className="text-[11px] text-white/60 mt-0.5">قسم</p>
               </div>
-              <div className="rounded-lg bg-white/10 border border-white/10 p-3 text-center">
-                <p className="text-xl font-black">{lowStockCount}</p>
-                <p className="text-[11px] text-white/70">كمية محدودة</p>
+              <div className="rounded-xl bg-white/8 border border-white/10 p-3 text-center backdrop-blur-sm">
+                <p className="text-2xl mb-0.5">⚡</p>
+                <p className="text-lg font-black leading-none">{lowStockCount}</p>
+                <p className="text-[11px] text-white/60 mt-0.5">محدود</p>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Wave divider */}
+        <svg viewBox="0 0 1440 52" preserveAspectRatio="none" className="w-full block" style={{ height: 52, marginBottom: -1 }}>
+          <path fill="#F8F6F0" d="M0,52 C240,20 480,52 720,32 C960,12 1200,48 1440,28 L1440,52 Z" />
+        </svg>
       </section>
 
-      <section className="sticky top-16 z-40 -mx-4 px-4 py-3 bg-cream/95 backdrop-blur border-y border-gold/20">
+      {/* ── Sticky filter bar ── */}
+      <section className="sticky top-16 z-40 -mx-4 px-4 py-3 bg-cream/95 backdrop-blur border-b border-gold/20 shadow-sm">
         <div className="flex flex-col gap-3">
           <div className="grid gap-2 sm:grid-cols-[1fr_190px]">
             <div className="relative">
@@ -214,13 +257,14 @@ export default function HomePage() {
                 <button
                   key={cat}
                   onClick={() => setCategory(cat)}
-                  className={`whitespace-nowrap text-sm font-bold py-2 px-4 rounded-lg border transition-all duration-200 flex-shrink-0 ${
+                  className={`whitespace-nowrap text-sm font-bold py-2 px-4 rounded-xl border transition-all duration-200 flex-shrink-0 flex items-center gap-1.5 ${
                     category === cat
                       ? 'bg-navy text-white border-navy shadow-sm'
-                      : 'bg-white text-navy border-gold/35 hover:border-gold'
+                      : 'bg-white text-navy border-gold/35 hover:border-gold hover:bg-gold/5'
                   }`}
                 >
-                  {cat}
+                  <span>{getCatEmoji(cat)}</span>
+                  <span>{cat}</span>
                 </button>
               ))}
             </div>
@@ -228,6 +272,7 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── Products grid ── */}
       <section>
         <div className="flex items-end justify-between gap-3 mb-3">
           <div>
@@ -248,7 +293,8 @@ export default function HomePage() {
             {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="bg-white border border-gold/30 rounded-lg text-center py-16 px-4">
+          <div className="bg-white border border-gold/30 rounded-xl text-center py-16 px-4">
+            <p className="text-4xl mb-3">🔍</p>
             <p className="font-black text-navy mb-2">لا توجد منتجات مطابقة</p>
             <p className="text-gray-500 text-sm">جرّب تغيير البحث أو اختيار قسم آخر.</p>
           </div>

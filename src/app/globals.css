@@ -26,5 +26,5 @@ body {
 }
 
 .card {
-  @apply bg-white rounded-lg gold-border shadow-sm;
+  @apply bg-white rounded-xl gold-border shadow-sm transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5;
 }
