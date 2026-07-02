@@ -206,19 +206,21 @@ export async function POST(request: Request) {
     })
 
     if (customerEmail) {
-      sendOrderConfirmationEmail({
-        customerName: data.customerName,
-        customerEmail,
-        orderNumber: result.orderNumber,
-        items: result.items,
-        totalEgp: result.totalEgp,
-        city: data.city,
-        address: data.address,
-        notes: data.notes,
-        paymentMethod: toFlutterPaymentMethod(data.payment),
-      }).catch(err => {
-        console.error('[Gmail] order confirmation email failed:', err?.message ?? String(err))
-      })
+      try {
+        await sendOrderConfirmationEmail({
+          customerName: data.customerName,
+          customerEmail,
+          orderNumber: result.orderNumber,
+          items: result.items,
+          totalEgp: result.totalEgp,
+          city: data.city,
+          address: data.address,
+          notes: data.notes,
+          paymentMethod: toFlutterPaymentMethod(data.payment),
+        })
+      } catch (err) {
+        console.error('[Gmail] order confirmation email failed:', err instanceof Error ? err.message : String(err))
+      }
     }
 
     return NextResponse.json(result)
