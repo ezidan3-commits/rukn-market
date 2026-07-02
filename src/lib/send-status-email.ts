@@ -22,6 +22,8 @@ const STATUS_CONFIG: Record<string, { label: string; detail: string; color: stri
   readyToShip:  { label: 'طلبك جاهز للشحن',     detail: 'تم تجهيز طلبك بالكامل وسيتم إرساله إليك قريباً.',          color: '#7C3AED', emoji: '📦' },
   shipped:      { label: 'تم شحن طلبك',          detail: 'طلبك في الطريق إليك! سنتواصل معك عند الوصول.',             color: '#0891B2', emoji: '🚚' },
   delivered:    { label: 'تم توصيل طلبك',        detail: 'وصل طلبك بنجاح! نشكرك على ثقتك في الركن الخليجي.',        color: '#16A34A', emoji: '✅' },
+  collected:    { label: 'تم استلام طلبك',       detail: 'تم استلام طلبك بنجاح! شكراً لتعاملك مع الركن الخليجي.',    color: '#15803D', emoji: '🎉' },
+  returned:     { label: 'تم إرجاع طلبك',        detail: 'تم قبول إرجاع طلبك. سيتم التواصل معك لترتيب الاسترداد.',  color: '#9333EA', emoji: '↩️' },
   cancelled:    { label: 'تم إلغاء طلبك',        detail: 'نأسف لإبلاغك بأنه تم إلغاء طلبك. للاستفسار تواصل معنا.', color: '#DC2626', emoji: '❌' },
 }
 

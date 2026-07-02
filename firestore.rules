@@ -7,10 +7,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Has a real account (email/password or Google) — not anonymous
+    // Real account (email/password or Google) — not anonymous
     function hasEmail() {
       return signedIn() && request.auth.token.email != null;
     }
+
+    // To further restrict staff vs customers:
+    // Add custom claim {staff: true} via Admin SDK and use
+    // request.auth.token.staff == true instead of hasEmail() for staff rules.
 
     match /products/{productId} {
       allow read: if signedIn();
@@ -23,12 +27,21 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
+      // Market customers: create their own order only
+      allow create: if hasEmail()
+        && request.resource.data.customerUid == request.auth.uid;
+      // Market customers: read their own orders
+      allow read: if hasEmail()
+        && resource.data.customerUid == request.auth.uid;
+      // Staff (Flutter): full access — covers the above two rules as well
       allow read, create, update, delete: if hasEmail();
-      // Market customers can read their own orders
-      allow read: if hasEmail() && resource.data.customerUid == request.auth.uid;
     }
 
     match /invoices/{invoiceId} {
+      // Market customers: read invoice linked to their own order
+      allow read: if hasEmail()
+        && get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.customerUid == request.auth.uid;
+      // Staff: full access
       allow read, create, update, delete: if hasEmail();
     }
 

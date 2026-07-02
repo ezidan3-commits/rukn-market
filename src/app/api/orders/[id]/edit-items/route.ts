@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
+import { sendAdminEditItemsNotification } from '@/lib/send-admin-notification'
 
 export const runtime = 'nodejs'
 
@@ -49,6 +50,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       ...oldItems.map(i => i.productId),
       ...newItems.map(i => i.productId),
     ])]
+
+    let committedItems: Array<{ name: string; quantity: number; sellEgp: number }> = []
+    let committedTotal = 0
 
     await db.runTransaction(async tx => {
       const productRefs = allProductIds.map(id => db.collection('products').doc(id))
@@ -101,6 +105,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
       })
 
       const newTotal = newOrderItems.reduce((s, i) => s + i.sellEgp * i.quantity, 0)
+      committedItems = newOrderItems.map(i => ({ name: i.name, quantity: i.quantity, sellEgp: i.sellEgp }))
+      committedTotal = newTotal
 
       tx.update(orderRef, {
         items: newOrderItems.map(({ productId, quantity, discountValue, discountType }) => ({
@@ -111,16 +117,31 @@ export async function POST(request: Request, { params }: { params: { id: string 
         updatedAt: FieldValue.serverTimestamp(),
       })
 
-      // Update invoice
+      // Update invoice — preserve any payments already made
       const invoiceSnap = await db.collection('invoices').where('orderId', '==', params.id).limit(1).get()
       if (!invoiceSnap.empty) {
+        const paidSoFar = Number(invoiceSnap.docs[0].data().paidAmountEgp ?? 0)
         tx.update(invoiceSnap.docs[0].ref, {
           amountEgp: newTotal,
-          remainingEgp: newTotal,
+          remainingEgp: Math.max(0, newTotal - paidSoFar),
           updatedAt: FieldValue.serverTimestamp(),
         })
       }
     })
+
+    try {
+      await sendAdminEditItemsNotification({
+        orderId: params.id,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName ?? '',
+        customerPhone: order.customerPhone ?? '',
+        city: order.city ?? '',
+        newItems: committedItems,
+        newTotalEgp: committedTotal,
+      })
+    } catch (err) {
+      console.error('[Gmail] admin edit-items notification failed:', err instanceof Error ? err.message : String(err))
+    }
 
     return NextResponse.json({ ok: true })
   } catch (err) {

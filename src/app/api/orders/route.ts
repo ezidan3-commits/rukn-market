@@ -3,6 +3,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 import { PaymentMethod, PAYMENT_LABEL } from '@/lib/types'
 import { sendOrderConfirmationEmail } from '@/lib/send-order-email'
+import { sendAdminNewOrderNotification } from '@/lib/send-admin-notification'
 
 function toFlutterPaymentMethod(method: PaymentMethod): string {
   if (method === 'vodafone_cash') return 'vodafoneCash'
@@ -221,6 +222,22 @@ export async function POST(request: Request) {
       } catch (err) {
         console.error('[Gmail] order confirmation email failed:', err instanceof Error ? err.message : String(err))
       }
+    }
+
+    try {
+      await sendAdminNewOrderNotification({
+        orderNumber: result.orderNumber,
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        city: data.city,
+        address: data.address,
+        notes: data.notes,
+        paymentMethod: toFlutterPaymentMethod(data.payment),
+        items: result.items,
+        totalEgp: result.totalEgp,
+      })
+    } catch (err) {
+      console.error('[Gmail] admin new-order notification failed:', err instanceof Error ? err.message : String(err))
     }
 
     return NextResponse.json(result)
