@@ -182,6 +182,7 @@ export async function POST(request: Request) {
         trackingNumber: '',
         paymentMethod: flutterPaymentMethod,
         customerUid,
+        ...(customerEmail ? { customerEmail } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       })
 
