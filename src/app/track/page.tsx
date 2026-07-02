@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { collection, getDocs, limit, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore'
 import { db, ensureAuth } from '@/lib/firebase'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -66,24 +66,37 @@ export default function TrackPage() {
 
     try {
       await ensureAuth()
+
+      // Try by orderNumber field first, then by document ID
+      let foundDoc: { id: string; data: () => Omit<OrderResult, 'id'> } | null = null
+
       const snap = await getDocs(
         query(collection(db, 'orders'), where('orderNumber', '==', num), limit(1))
       )
+      if (!snap.empty) {
+        const d = snap.docs[0]
+        foundDoc = { id: d.id, data: () => d.data() as Omit<OrderResult, 'id'> }
+      } else {
+        // Try by Firestore document ID
+        const docRef = doc(db, 'orders', num)
+        const docSnap = await getDoc(docRef)
+        if (docSnap.exists()) {
+          foundDoc = { id: docSnap.id, data: () => docSnap.data() as Omit<OrderResult, 'id'> }
+        }
+      }
 
-      if (snap.empty) {
+      if (!foundDoc) {
         setResult('not_found')
         return
       }
 
-      const doc = snap.docs[0]
-      const data = doc.data() as Omit<OrderResult, 'id'>
-
+      const data = foundDoc.data()
       if (data.customerPhone !== ph) {
         setResult('not_found')
         return
       }
 
-      setResult({ id: doc.id, ...data })
+      setResult({ id: foundDoc.id, ...data })
     } catch {
       setError('حدث خطأ، يرجى المحاولة مرة أخرى')
     } finally {
