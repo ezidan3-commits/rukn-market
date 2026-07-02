@@ -1,27 +1,34 @@
 import { NextResponse } from 'next/server'
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
 export const runtime = 'nodejs'
 
 export async function GET() {
-  const key = process.env.RESEND_API_KEY
-  const from = process.env.RESEND_FROM_EMAIL ?? 'onboarding@resend.dev (default sandbox)'
+  const user = process.env.GMAIL_USER
+  const pass = process.env.GMAIL_APP_PASSWORD
 
-  if (!key) {
-    return NextResponse.json({ ok: false, error: 'RESEND_API_KEY not set' })
+  if (!user || !pass) {
+    return NextResponse.json({
+      ok: false,
+      error: 'GMAIL_USER أو GMAIL_APP_PASSWORD غير مضبوط على Vercel',
+      hint: 'أضف GMAIL_USER و GMAIL_APP_PASSWORD في Vercel Environment Variables',
+    })
   }
 
   try {
-    const resend = new Resend(key)
-    const result = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL ?? 'الركن الخليجي <onboarding@resend.dev>',
-      to: 'ezidan3@gmail.com',
-      subject: 'اختبار إيميل الركن الخليجي',
-      html: '<p dir="rtl">هذا إيميل تجريبي للتأكد من أن إعدادات Resend تعمل بشكل صحيح.</p>',
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
     })
-    return NextResponse.json({ ok: true, from, resendResult: result })
+    await transporter.sendMail({
+      from: `"الركن الخليجي" <${user}>`,
+      to: 'ezidan3@gmail.com',
+      subject: 'اختبار إيميل الركن الخليجي ✅',
+      html: '<div dir="rtl" style="font-family:Arial;padding:20px"><h2 style="color:#071f3d">الركن الخليجي</h2><p>الإيميل شغال بنجاح عبر Gmail ✅</p></div>',
+    })
+    return NextResponse.json({ ok: true, from: user, message: 'تم إرسال الإيميل التجريبي بنجاح' })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ ok: false, from, error: message })
+    return NextResponse.json({ ok: false, error: message })
   }
 }

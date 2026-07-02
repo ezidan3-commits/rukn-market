@@ -1,6 +1,14 @@
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
-const resend = new Resend(process.env.RESEND_API_KEY ?? 'no-key')
+function getTransporter() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  })
+}
 
 interface OrderEmailData {
   customerName: string
@@ -38,26 +46,22 @@ function buildHtml(data: OrderEmailData): string {
 <body style="margin:0;padding:0;background:#f5f0e8;font-family:Arial,Helvetica,sans-serif;">
   <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(7,31,61,0.10);">
 
-    <!-- Header -->
     <div style="background:#071f3d;padding:28px 32px;text-align:center;">
       <h1 style="color:#C9A84C;margin:0;font-size:22px;letter-spacing:1px;">الركن الخليجي</h1>
       <p style="color:#ffffff99;margin:6px 0 0;font-size:13px;">تأكيد استلام طلبك</p>
     </div>
 
-    <!-- Body -->
     <div style="padding:28px 32px;">
       <p style="color:#071f3d;font-size:16px;margin:0 0 8px;">مرحباً <strong>${data.customerName}</strong>،</p>
       <p style="color:#555;font-size:14px;line-height:1.7;margin:0 0 24px;">
         شكراً لك على طلبك من الركن الخليجي! تم استلام طلبك بنجاح وسيتم التواصل معك قريباً لتأكيد التفاصيل وترتيب التوصيل.
       </p>
 
-      <!-- Order number -->
       <div style="background:#f5f0e8;border-radius:10px;padding:16px 20px;margin-bottom:24px;text-align:center;">
         <p style="color:#888;font-size:12px;margin:0 0 4px;">رقم الطلب</p>
         <p style="color:#071f3d;font-size:18px;font-weight:bold;font-family:monospace;margin:0;">${data.orderNumber}</p>
       </div>
 
-      <!-- Items table -->
       <p style="color:#071f3d;font-weight:bold;margin:0 0 10px;font-size:14px;">المنتجات:</p>
       <table width="100%" style="border-collapse:collapse;margin-bottom:16px;">
         <thead>
@@ -70,13 +74,11 @@ function buildHtml(data: OrderEmailData): string {
         <tbody>${itemsRows}</tbody>
       </table>
 
-      <!-- Total -->
       <div style="display:flex;justify-content:space-between;border-top:2px solid #C9A84C;padding-top:12px;margin-bottom:24px;">
         <span style="color:#071f3d;font-weight:bold;font-size:15px;">الإجمالي</span>
         <span style="color:#C9A84C;font-weight:bold;font-size:18px;">${formatMoney(data.totalEgp)}</span>
       </div>
 
-      <!-- Details -->
       <div style="background:#f9f6f0;border-radius:10px;padding:16px 20px;font-size:13px;color:#444;line-height:1.9;">
         <div><strong style="color:#071f3d;">المدينة:</strong> ${data.city}</div>
         <div><strong style="color:#071f3d;">العنوان:</strong> ${data.address}</div>
@@ -90,9 +92,8 @@ function buildHtml(data: OrderEmailData): string {
       </p>
     </div>
 
-    <!-- Footer -->
     <div style="background:#071f3d;padding:16px 32px;text-align:center;">
-      <p style="color:#ffffff55;font-size:11px;margin:0;">© 2025 الركن الخليجي — جميع الحقوق محفوظة</p>
+      <p style="color:#ffffff55;font-size:11px;margin:0;">© 2026 الركن الخليجي — جميع الحقوق محفوظة</p>
     </div>
   </div>
 </body>
@@ -100,10 +101,11 @@ function buildHtml(data: OrderEmailData): string {
 }
 
 export async function sendOrderConfirmationEmail(data: OrderEmailData): Promise<void> {
-  if (!process.env.RESEND_API_KEY) return
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return
 
-  await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL ?? 'الركن الخليجي <onboarding@resend.dev>',
+  const transporter = getTransporter()
+  await transporter.sendMail({
+    from: `"الركن الخليجي" <${process.env.GMAIL_USER}>`,
     to: data.customerEmail,
     subject: `تأكيد طلبك ${data.orderNumber} — الركن الخليجي`,
     html: buildHtml(data),

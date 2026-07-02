@@ -1,6 +1,14 @@
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
-const resend = new Resend(process.env.RESEND_API_KEY ?? 'no-key')
+function getTransporter() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  })
+}
 
 interface StatusEmailData {
   customerName: string
@@ -24,19 +32,16 @@ function buildHtml(data: StatusEmailData, cfg: typeof STATUS_CONFIG[string]): st
 <body style="margin:0;padding:0;background:#f5f0e8;font-family:Arial,Helvetica,sans-serif;">
   <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(7,31,61,0.10);">
 
-    <!-- Header -->
     <div style="background:#071f3d;padding:24px 32px;text-align:center;">
       <h1 style="color:#C9A84C;margin:0;font-size:20px;letter-spacing:1px;">الركن الخليجي</h1>
       <p style="color:#ffffff99;margin:5px 0 0;font-size:12px;">تحديث حالة طلبك</p>
     </div>
 
-    <!-- Status badge -->
     <div style="background:${cfg.color}18;border-top:4px solid ${cfg.color};padding:24px 32px;text-align:center;">
       <p style="font-size:36px;margin:0 0 8px;">${cfg.emoji}</p>
       <h2 style="color:${cfg.color};margin:0;font-size:20px;font-weight:900;">${cfg.label}</h2>
     </div>
 
-    <!-- Body -->
     <div style="padding:24px 32px;">
       <p style="color:#071f3d;font-size:16px;margin:0 0 8px;">مرحباً <strong>${data.customerName}</strong>،</p>
       <p style="color:#555;font-size:14px;line-height:1.8;margin:0 0 20px;">${cfg.detail}</p>
@@ -52,9 +57,8 @@ function buildHtml(data: StatusEmailData, cfg: typeof STATUS_CONFIG[string]): st
       </p>
     </div>
 
-    <!-- Footer -->
     <div style="background:#071f3d;padding:14px 32px;text-align:center;">
-      <p style="color:#ffffff55;font-size:11px;margin:0;">© 2025 الركن الخليجي — جميع الحقوق محفوظة</p>
+      <p style="color:#ffffff55;font-size:11px;margin:0;">© 2026 الركن الخليجي — جميع الحقوق محفوظة</p>
     </div>
   </div>
 </body>
@@ -62,12 +66,13 @@ function buildHtml(data: StatusEmailData, cfg: typeof STATUS_CONFIG[string]): st
 }
 
 export async function sendStatusEmail(data: StatusEmailData): Promise<void> {
-  if (!process.env.RESEND_API_KEY) return
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) return
   const cfg = STATUS_CONFIG[data.status]
   if (!cfg) return
 
-  await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL ?? 'الركن الخليجي <onboarding@resend.dev>',
+  const transporter = getTransporter()
+  await transporter.sendMail({
+    from: `"الركن الخليجي" <${process.env.GMAIL_USER}>`,
     to: data.customerEmail,
     subject: `${cfg.emoji} ${cfg.label} — طلب ${data.orderNumber}`,
     html: buildHtml(data, cfg),
