@@ -9,7 +9,7 @@ import { CheckoutForm, PaymentMethod, PAYMENT_OPTIONS } from '@/lib/types'
 export default function CheckoutPage() {
   const router = useRouter()
   const { items, total, clear } = useCart()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Partial<CheckoutForm>>({})
 
@@ -25,6 +25,11 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (items.length === 0) router.replace('/')
   }, [items, router])
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!user || user.isAnonymous) router.replace('/auth?next=/checkout')
+  }, [user, authLoading, router])
 
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
@@ -105,6 +110,14 @@ export default function CheckoutPage() {
       const msg = err instanceof Error ? err.message : 'حدث خطأ أثناء إرسال الطلب'
       alert(msg + '\n\nتأكد من اتصالك بالإنترنت وحاول مرة أخرى.')
     }
+  }
+
+  if (authLoading || !user || user.isAnonymous) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <div className="w-8 h-8 border-4 border-navy border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
   }
 
   return (

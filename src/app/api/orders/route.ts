@@ -84,17 +84,20 @@ export async function POST(request: Request) {
     const data = parsed.value
     const adminDb = getAdminDb()
 
-    let customerUid: string | null = null
     const authHeader = request.headers.get('Authorization')
-    if (authHeader?.startsWith('Bearer ')) {
-      try {
-        const decoded = await getAdminAuth().verifyIdToken(authHeader.slice(7))
-        if (decoded.firebase.sign_in_provider !== 'anonymous') {
-          customerUid = decoded.uid
-        }
-      } catch {
-        // invalid token — proceed as guest
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'يجب تسجيل الدخول أولاً لإتمام الطلب' }, { status: 401 })
+    }
+
+    let customerUid: string
+    try {
+      const decoded = await getAdminAuth().verifyIdToken(authHeader.slice(7))
+      if (decoded.firebase.sign_in_provider === 'anonymous') {
+        return NextResponse.json({ error: 'يجب تسجيل الدخول بحساب حقيقي لإتمام الطلب' }, { status: 401 })
       }
+      customerUid = decoded.uid
+    } catch {
+      return NextResponse.json({ error: 'جلسة منتهية، سجّل الدخول مجدداً' }, { status: 401 })
     }
 
     try {
@@ -174,7 +177,7 @@ export async function POST(request: Request) {
         isVip: false,
         trackingNumber: '',
         paymentMethod: flutterPaymentMethod,
-        ...(customerUid ? { customerUid } : {}),
+        customerUid,
         updatedAt: FieldValue.serverTimestamp(),
       })
 
