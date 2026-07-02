@@ -52,7 +52,8 @@ export default function TrackPage() {
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
-    const num = orderNumber.trim().toUpperCase()
+    const numRaw = orderNumber.trim()
+    const num = numRaw.toUpperCase()
     const ph = phone.trim()
 
     if (!num || !ph) {
@@ -77,8 +78,8 @@ export default function TrackPage() {
         const d = snap.docs[0]
         foundDoc = { id: d.id, data: () => d.data() as Omit<OrderResult, 'id'> }
       } else {
-        // Try by Firestore document ID
-        const docRef = doc(db, 'orders', num)
+        // Try by Firestore document ID (case-sensitive — use original input)
+        const docRef = doc(db, 'orders', numRaw)
         const docSnap = await getDoc(docRef)
         if (docSnap.exists()) {
           foundDoc = { id: docSnap.id, data: () => docSnap.data() as Omit<OrderResult, 'id'> }
