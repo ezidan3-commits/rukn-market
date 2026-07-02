@@ -8,7 +8,8 @@ import ProductCard from '@/components/ProductCard'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
 import { trackProductEvent } from '@/lib/analytics'
-import { Product, productImageSources } from '@/lib/types'
+import { Product, productImageSrc, productImageSources } from '@/lib/types'
+import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
 
 function ProductFallback({ large = false }: { large?: boolean }) {
   return (
@@ -36,6 +37,8 @@ export default function ProductDetailClient({ id }: { id: string }) {
   const images = product ? productImageSources(product) : []
   const activeImage = selectedImage || images[0] || ''
 
+  const { addItem: addToRecent } = useRecentlyViewed(id)
+
   useEffect(() => {
     let unsub: (() => void) | undefined
     ensureAuth().then(() => {
@@ -48,6 +51,7 @@ export default function ProductDetailClient({ id }: { id: string }) {
             if (trackedView.current !== p.id) {
               trackedView.current = p.id
               trackProductEvent(p, 'view')
+              addToRecent({ id: p.id, name: p.name, sellEgp: p.sellEgp, imageUrl: productImageSrc(p) ?? undefined, marketCategory: p.marketCategory })
             }
             if (p.marketCategory && fetchedCategory.current !== p.marketCategory) {
               fetchedCategory.current = p.marketCategory

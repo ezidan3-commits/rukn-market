@@ -2,29 +2,66 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
+
+    function signedIn() {
       return request.auth != null;
     }
 
-    match /products/{productId} {
-      allow read: if resource.data.visibleInMarket == true;
-      allow write: if false;
+    // Has a real account (email/password or Google) — not anonymous
+    function hasEmail() {
+      return signedIn() && request.auth.token.email != null;
     }
 
-    match /productCategories/{catId} {
-      allow read: if isSignedIn();
-      allow write: if false;
+    match /products/{productId} {
+      allow read: if signedIn();
+      allow create, update, delete: if hasEmail();
+    }
+
+    match /productCategories/{categoryId} {
+      allow read: if signedIn();
+      allow create, update, delete: if hasEmail();
     }
 
     match /orders/{orderId} {
-      allow read: if request.auth != null
-        && request.auth.token.firebase.sign_in_provider != 'anonymous'
-        && resource.data.customerUid == request.auth.uid;
-      allow write: if false;
+      allow read, create, update, delete: if hasEmail();
+      // Market customers can read their own orders
+      allow read: if hasEmail() && resource.data.customerUid == request.auth.uid;
+    }
+
+    match /invoices/{invoiceId} {
+      allow read, create, update, delete: if hasEmail();
+    }
+
+    match /stockMovements/{movementId} {
+      allow read, create, update, delete: if hasEmail();
+    }
+
+    match /settings/{settingId} {
+      allow read, create, update, delete: if hasEmail();
+    }
+
+    match /deviceTokens/{tokenId} {
+      allow read, create, update, delete: if hasEmail();
+    }
+
+    match /appConfig/{docId} {
+      allow read, create, update, delete: if hasEmail();
+    }
+
+    match /expenses/{expenseId} {
+      allow read, create, update, delete: if hasEmail();
+    }
+
+    match /activityLog/{entryId} {
+      allow read, create, update, delete: if hasEmail();
+    }
+
+    match /customerNotes/{noteId} {
+      allow read, create, update, delete: if hasEmail();
     }
 
     match /analytics/{docId} {
-      allow read: if isSignedIn();
+      allow read: if hasEmail();
       allow write: if false;
     }
 

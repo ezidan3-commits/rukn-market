@@ -1,12 +1,15 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { collection, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
+import ScrollRevealGrid from '@/components/ScrollRevealGrid'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
-import { Product, ProductCategory } from '@/lib/types'
+import { Product, ProductCategory, productImageSrc } from '@/lib/types'
 import { DRAFT_KEY, type DraftItem, type EditOrderDraft } from '@/lib/edit-order'
+import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
 
 type SortOption = 'default' | 'price_asc' | 'price_desc'
 
@@ -55,6 +58,10 @@ export default function HomePage() {
   const [category, setCategory] = useState<string>('الكل')
   const [search, setSearch] = useState<string>('')
   const [sort, setSort] = useState<SortOption>('default')
+  const [showDropdown, setShowDropdown] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  const { items: recentItems } = useRecentlyViewed()
 
   const [editDraft, setEditDraft] = useState<EditOrderDraft | null>(null)
 
@@ -134,6 +141,23 @@ export default function HomePage() {
     () => products.filter(p => p.quantity > 0 && p.quantity <= 3).length,
     [products]
   )
+
+  const searchDropdownResults = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return []
+    return products.filter(p => p.name.toLowerCase().includes(q)).slice(0, 6)
+  }, [search, products])
+
+  useEffect(() => {
+    if (!showDropdown) return
+    function handle(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [showDropdown])
 
   const addedCount = editDraft?.draftItems.reduce((s, i) => s + i.quantity, 0) ?? 0
 
@@ -218,11 +242,12 @@ export default function HomePage() {
       <section className="sticky top-16 z-40 -mx-4 px-4 py-3 bg-cream/95 backdrop-blur border-b border-gold/20 shadow-sm">
         <div className="flex flex-col gap-3">
           <div className="grid gap-2 sm:grid-cols-[1fr_190px]">
-            <div className="relative">
+            <div className="relative" ref={searchRef}>
               <input
                 type="text"
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={e => { setSearch(e.target.value); setShowDropdown(true) }}
+                onFocus={() => search && setShowDropdown(true)}
                 placeholder="ابحث باسم المنتج..."
                 className="w-full border border-gold/40 rounded-lg py-3 pr-11 pl-10 text-sm text-navy font-semibold outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 bg-white shadow-sm"
                 dir="rtl"
@@ -232,12 +257,49 @@ export default function HomePage() {
               </svg>
               {search && (
                 <button
-                  onClick={() => setSearch('')}
+                  onClick={() => { setSearch(''); setShowDropdown(false) }}
                   aria-label="مسح البحث"
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-navy text-lg font-bold"
                 >
                   ×
                 </button>
+              )}
+
+              {/* Search dropdown */}
+              {showDropdown && searchDropdownResults.length > 0 && (
+                <div className="absolute top-full right-0 left-0 mt-1 bg-white border border-gold/30 rounded-xl shadow-xl z-50 overflow-hidden">
+                  {searchDropdownResults.map(p => {
+                    const img = productImageSrc(p)
+                    return (
+                      <Link
+                        key={p.id}
+                        href={`/product/${p.id}`}
+                        onClick={() => setShowDropdown(false)}
+                        className="flex items-center gap-3 px-3 py-2.5 hover:bg-cream transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gold/20">
+                          {img ? (
+                            img.startsWith('data:') ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={img} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Image src={img} alt="" width={40} height={40} className="object-cover w-full h-full" />
+                            )
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-navy/30 text-lg">📦</div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-navy font-bold text-sm truncate">{p.name}</p>
+                          <p className="text-gold text-xs font-black">{p.sellEgp.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })}</p>
+                        </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </Link>
+                    )
+                  })}
+                </div>
               )}
             </div>
 
@@ -274,6 +336,41 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── Recently Viewed ── */}
+      {!loading && recentItems.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-navy text-base font-black">شاهدتها مؤخراً</h2>
+            <span className="text-xs text-gray-400">{recentItems.length} منتج</span>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {recentItems.map(item => {
+              const img = item.imageUrl
+              return (
+                <Link key={item.id} href={`/product/${item.id}`} className="flex-shrink-0 w-32 card overflow-hidden hover:-translate-y-0.5 transition-transform">
+                  <div className="h-28 bg-gray-50 relative overflow-hidden">
+                    {img ? (
+                      img.startsWith('data:') ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={img} alt={item.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Image src={img} alt={item.name} fill className="object-cover" sizes="128px" />
+                      )
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-navy/25 text-3xl">📦</div>
+                    )}
+                  </div>
+                  <div className="p-2">
+                    <p className="text-navy font-bold text-xs leading-tight line-clamp-2">{item.name}</p>
+                    <p className="text-gold font-black text-xs mt-1">{item.sellEgp.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })}</p>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
       {/* ── Products grid ── */}
       <section>
         <div className="flex items-end justify-between gap-3 mb-3">
@@ -285,9 +382,6 @@ export default function HomePage() {
               </p>
             )}
           </div>
-          <a href={`https://wa.me/${process.env.NEXT_PUBLIC_WA_NUMBER}`} target="_blank" rel="noopener noreferrer" className="btn-navy py-2 px-4 text-sm">
-            تواصل معنا
-          </a>
         </div>
 
         {loading ? (
@@ -301,7 +395,7 @@ export default function HomePage() {
             <p className="text-gray-500 text-sm">جرّب تغيير البحث أو اختيار قسم آخر.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <ScrollRevealGrid className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {filtered.map(p => (
               <ProductCard
                 key={p.id}
@@ -311,7 +405,7 @@ export default function HomePage() {
                 onAddToOrder={handleAddToOrder}
               />
             ))}
-          </div>
+          </ScrollRevealGrid>
         )}
       </section>
 

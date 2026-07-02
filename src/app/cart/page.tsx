@@ -1,8 +1,128 @@
 'use client'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRef, useState } from 'react'
 import { useCart } from '@/context/CartContext'
-import { productImageSrc } from '@/lib/types'
+import { Product, productImageSrc } from '@/lib/types'
+
+interface SwipeItemProps {
+  product: Product
+  quantity: number
+  onRemove: () => void
+  onDecrement: () => void
+  onIncrement: () => void
+  money: (n: number) => string
+}
+
+function SwipeableCartItem({ product, quantity, onRemove, onDecrement, onIncrement, money }: SwipeItemProps) {
+  const [offsetX, setOffsetX] = useState(0)
+  const [removing, setRemoving] = useState(false)
+  const startX = useRef(0)
+  const isDragging = useRef(false)
+  const THRESHOLD = 90
+
+  const imgSrc = productImageSrc(product)
+
+  function onTouchStart(e: React.TouchEvent) {
+    startX.current = e.touches[0].clientX
+    isDragging.current = true
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (!isDragging.current) return
+    const dx = startX.current - e.touches[0].clientX
+    if (dx > 0) setOffsetX(Math.min(dx, 120))
+    else setOffsetX(0)
+  }
+
+  function onTouchEnd() {
+    isDragging.current = false
+    if (offsetX >= THRESHOLD) {
+      triggerRemove()
+    } else {
+      setOffsetX(0)
+    }
+  }
+
+  function triggerRemove() {
+    setRemoving(true)
+    setTimeout(() => onRemove(), 320)
+  }
+
+  return (
+    <div
+      className="relative overflow-hidden rounded-xl"
+      style={{
+        maxHeight: removing ? 0 : 200,
+        opacity: removing ? 0 : 1,
+        marginBottom: removing ? 0 : undefined,
+        transition: 'max-height 0.3s ease, opacity 0.3s ease',
+      }}
+    >
+      {/* Red delete reveal */}
+      <div className="absolute inset-y-0 left-0 w-28 bg-red-500 flex items-center justify-center gap-1 rounded-xl">
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+        <span className="text-white text-xs font-black">حذف</span>
+      </div>
+
+      {/* Card */}
+      <div
+        className="card p-3 flex gap-3 items-center bg-white relative"
+        style={{
+          transform: `translateX(-${offsetX}px)`,
+          transition: isDragging.current ? 'none' : 'transform 0.25s ease',
+        }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 border border-gold/20">
+          {imgSrc ? (
+            imgSrc.startsWith('data:') ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imgSrc} alt={product.name} className="w-full h-full object-cover" />
+            ) : (
+              <Image src={imgSrc} alt={product.name} fill className="object-cover" />
+            )
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-navy/35">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.36-1.36 1.1 10.43A2.25 2.25 0 0 1 18.47 22H5.53a2.25 2.25 0 0 1-2.24-2.43l1.1-10.43A2.25 2.25 0 0 1 6.63 7.1h10.74a2.25 2.25 0 0 1 2.24 2.04Z" />
+              </svg>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="font-black text-navy text-sm leading-tight line-clamp-2">{product.name}</p>
+          <p className="text-gold font-black text-sm mt-1">{money(product.sellEgp)}</p>
+          <p className="text-xs text-gray-400">{money(product.sellEgp * quantity)} إجمالي</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onDecrement}
+            className="w-8 h-8 rounded-lg bg-navy text-white font-black text-lg flex items-center justify-center"
+            aria-label="تقليل الكمية"
+          >
+            −
+          </button>
+          <span className="w-7 text-center font-black text-navy">{quantity}</span>
+          <button
+            onClick={onIncrement}
+            disabled={quantity >= product.quantity}
+            className="w-8 h-8 rounded-lg bg-gold text-navy font-black text-lg flex items-center justify-center disabled:opacity-40"
+            aria-label="زيادة الكمية"
+          >
+            +
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function CartPage() {
   const { items, remove, updateQty, total } = useCart()
@@ -35,56 +155,22 @@ export default function CartPage() {
           </div>
           <Link href="/" className="text-sm font-bold text-navy hover:text-gold">متابعة التسوق</Link>
         </div>
+        <p className="text-xs text-gray-400 mb-3 flex items-center gap-1">
+          <span>👆</span> اسحب البطاقة لليسار لحذف المنتج
+        </p>
 
         <div className="flex flex-col gap-3">
-          {items.map(({ product, quantity }) => {
-            const imgSrc = productImageSrc(product)
-            return (
-              <div key={product.id} className="card p-3 flex gap-3 items-center">
-                <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-50 flex-shrink-0 border border-gold/20">
-                  {imgSrc ? (
-                    imgSrc.startsWith('data:') ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={imgSrc} alt={product.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <Image src={imgSrc} alt={product.name} fill className="object-cover" />
-                    )
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-navy/35">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-9 h-9" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.36-1.36 1.1 10.43A2.25 2.25 0 0 1 18.47 22H5.53a2.25 2.25 0 0 1-2.24-2.43l1.1-10.43A2.25 2.25 0 0 1 6.63 7.1h10.74a2.25 2.25 0 0 1 2.24 2.04Z" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-navy text-sm leading-tight line-clamp-2">{product.name}</p>
-                  <p className="text-gold font-black text-sm mt-1">{money(product.sellEgp)}</p>
-                  <p className="text-xs text-gray-400">{money(product.sellEgp * quantity)} إجمالي</p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => quantity === 1 ? remove(product.id) : updateQty(product.id, quantity - 1)}
-                    className="w-8 h-8 rounded-lg bg-navy text-white font-black text-lg flex items-center justify-center"
-                    aria-label="تقليل الكمية"
-                  >
-                    −
-                  </button>
-                  <span className="w-7 text-center font-black text-navy">{quantity}</span>
-                  <button
-                    onClick={() => updateQty(product.id, quantity + 1)}
-                    disabled={quantity >= product.quantity}
-                    className="w-8 h-8 rounded-lg bg-gold text-navy font-black text-lg flex items-center justify-center disabled:opacity-40"
-                    aria-label="زيادة الكمية"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            )
-          })}
+          {items.map(({ product, quantity }) => (
+            <SwipeableCartItem
+              key={product.id}
+              product={product}
+              quantity={quantity}
+              money={money}
+              onRemove={() => remove(product.id)}
+              onDecrement={() => quantity === 1 ? remove(product.id) : updateQty(product.id, quantity - 1)}
+              onIncrement={() => updateQty(product.id, quantity + 1)}
+            />
+          ))}
         </div>
       </section>
 
