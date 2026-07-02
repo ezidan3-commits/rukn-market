@@ -46,7 +46,9 @@ function SkeletonCard() {
 }
 
 export default function HomePage() {
-  const { syncWithProducts } = useCart()
+  const { syncWithProducts, items, count } = useCart()
+  const cartTotal = items.reduce((s, i) => s + i.product.sellEgp * i.quantity, 0)
+  const moneyCart = (n: number) => n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
   const [products, setProducts] = useState<Product[]>([])
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -312,6 +314,31 @@ export default function HomePage() {
           </div>
         )}
       </section>
+
+      {/* ── Bottom sticky cart bar ── */}
+      {count > 0 && !editDraft && (
+        <div className="fixed inset-x-0 bottom-0 z-40 lg:hidden">
+          <div className="bg-navy/95 backdrop-blur border-t border-gold/20 px-4 py-3 shadow-[0_-8px_32px_rgba(7,31,61,0.35)]">
+            <div className="max-w-5xl mx-auto flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gold/20 flex items-center justify-center flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white/70 text-xs">{count} {count === 1 ? 'منتج' : 'منتجات'} في السلة</p>
+                <p className="font-black text-gold text-base leading-tight">{moneyCart(cartTotal)}</p>
+              </div>
+              <Link
+                href="/cart"
+                className="bg-gold text-navy font-black px-5 py-2.5 rounded-xl text-sm whitespace-nowrap active:scale-95 transition-transform"
+              >
+                إتمام الطلب ←
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="pt-6 border-t border-gold/20 text-center pb-6">
         <p className="font-black text-navy text-lg mb-1">الركن الخليجي</p>

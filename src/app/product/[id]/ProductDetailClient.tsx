@@ -27,6 +27,7 @@ export default function ProductDetailClient({ id }: { id: string }) {
   const [related, setRelated] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState('')
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null)
   const trackedView = useRef<string | null>(null)
   const fetchedCategory = useRef<string | null>(null)
 
@@ -120,17 +121,27 @@ export default function ProductDetailClient({ id }: { id: string }) {
 
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_410px] lg:items-start">
         <div className="space-y-3">
-          <div className="relative aspect-square overflow-hidden rounded-lg bg-white border border-gold/30">
+          <div
+            className="relative aspect-square overflow-hidden rounded-lg bg-white border border-gold/30 cursor-zoom-in"
+            onClick={() => activeImage && setZoomedImage(activeImage)}
+          >
             {activeImage ? (
               activeImage.startsWith('data:') ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={activeImage} alt={product.name} className="w-full h-full object-cover" />
+                <img src={activeImage} alt={product.name} className="w-full h-full object-cover transition-transform duration-300 hover:scale-105" />
               ) : (
-                <Image src={activeImage} alt={product.name} fill className="object-cover" priority />
+                <Image src={activeImage} alt={product.name} fill className="object-cover transition-transform duration-300 hover:scale-105" priority />
               )
             ) : (
               <ProductFallback large />
             )}
+            {/* Zoom hint */}
+            <div className="absolute bottom-3 left-3 bg-black/40 text-white text-[11px] font-bold px-2 py-1 rounded-lg backdrop-blur-sm flex items-center gap-1 pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35m0 0A7 7 0 1 0 3 10a7 7 0 0 0 13.65 6.65Z" />
+              </svg>
+              تكبير
+            </div>
 
             <span className={`absolute top-3 right-3 text-white text-sm font-bold px-3 py-1 rounded-md shadow-sm ${
               product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
@@ -249,6 +260,30 @@ export default function ProductDetailClient({ id }: { id: string }) {
             {related.map(p => <ProductCard key={p.id} product={p} />)}
           </div>
         </section>
+      )}
+
+      {/* Image zoom modal */}
+      {zoomedImage && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4"
+          onClick={() => setZoomedImage(null)}
+        >
+          <button
+            onClick={() => setZoomedImage(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 text-white flex items-center justify-center text-xl hover:bg-white/25 transition-colors"
+            aria-label="إغلاق"
+          >
+            ×
+          </button>
+          <div className="relative max-w-2xl w-full aspect-square" onClick={e => e.stopPropagation()}>
+            {zoomedImage.startsWith('data:') ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={zoomedImage} alt={product.name} className="w-full h-full object-contain" />
+            ) : (
+              <Image src={zoomedImage} alt={product.name} fill className="object-contain" />
+            )}
+          </div>
+        </div>
       )}
 
       <div className="fixed inset-x-0 bottom-0 z-50 bg-white border-t border-gold/30 p-3 shadow-[0_-8px_24px_rgba(7,31,61,0.12)] lg:hidden">

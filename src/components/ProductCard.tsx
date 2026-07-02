@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
 import { useCart } from '@/context/CartContext'
+import { useToast } from '@/context/ToastContext'
 import { trackProductEvent } from '@/lib/analytics'
 import { Product, productImageSrc } from '@/lib/types'
 
@@ -23,10 +24,13 @@ interface Props {
 
 export default function ProductCard({ product, editOrderMode = false, draftQty = 0, onAddToOrder }: Props) {
   const { add, items } = useCart()
+  const { showToast } = useToast()
   const inCart = items.find(i => i.product.id === product.id)
   const imgSrc = productImageSrc(product)
   const [justAdded, setJustAdded] = useState(false)
   const [liked, setLiked] = useState(false)
+
+  const isLowStock = product.quantity > 0 && product.quantity <= 3
 
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
@@ -34,6 +38,7 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
   const handleAddToCart = () => {
     add(product)
     trackProductEvent(product, 'cart_add')
+    showToast(product.name, imgSrc || undefined)
     setJustAdded(true)
     setTimeout(() => setJustAdded(false), 1200)
   }
@@ -71,11 +76,19 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
             </div>
           )}
 
-          {/* Availability badge */}
+          {/* Availability / urgency badge */}
           <span className={`absolute top-2 right-2 text-white text-[11px] font-bold px-2 py-1 rounded-md shadow-sm ${
-            product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
+            product.quantity === 1
+              ? 'bg-red-600 animate-pulse'
+              : product.quantity <= 3
+                ? 'bg-amber-500 animate-pulse'
+                : 'bg-green-600'
           }`}>
-            {product.quantity === 1 ? 'آخر قطعة' : product.quantity <= 3 ? `آخر ${product.quantity} قطع` : 'متاح'}
+            {product.quantity === 1
+              ? '⚡ آخر قطعة!'
+              : product.quantity <= 3
+                ? `⚡ آخر ${product.quantity} قطع!`
+                : 'متاح'}
           </span>
 
           {/* Heart wishlist button — normal mode only */}
@@ -98,11 +111,11 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
             </span>
           )}
 
-          {/* Price overlay at bottom of image */}
+          {/* Price overlay */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-navy/75 via-navy/30 to-transparent px-3 pt-6 pb-2 flex items-end justify-between">
             <span className="text-white font-black text-base drop-shadow">{money(product.sellEgp)}</span>
             {!editOrderMode && inCart && (
-              <span className="text-[11px] text-white/90 font-bold bg-gold/80 px-2 py-0.5 rounded-md">
+              <span className="text-[11px] text-white font-bold bg-gold/80 px-2 py-0.5 rounded-md">
                 × {inCart.quantity}
               </span>
             )}
@@ -120,6 +133,14 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
             {product.name}
           </h3>
         </Link>
+
+        {/* Low-stock urgency text */}
+        {isLowStock && !editOrderMode && (
+          <p className="text-[11px] text-amber-600 font-bold flex items-center gap-1">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            الكمية محدودة — اطلب الآن
+          </p>
+        )}
 
         <div className="mt-auto">
           {editOrderMode ? (

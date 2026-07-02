@@ -5,6 +5,7 @@ import { AuthProvider } from '@/context/AuthContext'
 import Header from '@/components/Header'
 import BackToTop from '@/components/BackToTop'
 import InstallPWA from '@/components/InstallPWA'
+import { ToastProvider } from '@/context/ToastContext'
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-cream font-arabic">
         <AuthProvider>
         <CartProvider>
+        <ToastProvider>
           <Header />
           <main className="max-w-5xl mx-auto px-4 pb-28 pt-4">
             {children}
@@ -84,6 +86,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </svg>
             </a>
           </div>
+        </ToastProvider>
         </CartProvider>
         </AuthProvider>
       </body>
