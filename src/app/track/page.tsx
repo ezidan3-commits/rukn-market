@@ -29,6 +29,7 @@ const STATUS_COLOR: Record<string, string> = {
 interface OrderResult {
   id: string
   orderNumber: string
+  customerPhone: string
   status: string
   totalEgp: number
   createdAt: { seconds: number }
