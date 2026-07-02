@@ -207,6 +207,24 @@ export async function POST(request: Request) {
       }
     })
 
+    // Upsert marketing subscriber (silent — never blocks order creation)
+    if (customerEmail) {
+      try {
+        await adminDb.collection('marketingSubscribers').doc(customerUid).set(
+          {
+            email: customerEmail,
+            name: data.customerName,
+            city: data.city,
+            subscribedAt: new Date(),
+            unsubscribed: false,
+          },
+          { merge: true }
+        )
+      } catch (err) {
+        console.error('[Firestore] marketingSubscribers upsert failed:', err instanceof Error ? err.message : String(err))
+      }
+    }
+
     if (customerEmail) {
       try {
         await sendOrderConfirmationEmail({

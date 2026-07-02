@@ -8,7 +8,6 @@ interface CampaignBody {
   subject: string
   body: string
   imageUrl?: string
-  cityFilter?: string
 }
 
 function buildHtml(subject: string, body: string, imageUrl?: string, gmailUser?: string): string {
@@ -62,24 +61,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'الموضوع والرسالة مطلوبان' }, { status: 400 })
   }
 
-  // Collect unique customer emails from orders
+  // Read from dedicated subscribers collection
   const db = getAdminDb()
-  const snap = await db.collection('orders')
-    .where('customerEmail', '!=', null)
-    .select('customerEmail', 'city')
+  const snap = await db.collection('marketingSubscribers')
+    .where('unsubscribed', '==', false)
+    .select('email')
     .get()
-
-  const emailSet = new Set<string>()
-  for (const doc of snap.docs) {
-    const data = doc.data()
-    const email = (data.customerEmail as string | undefined)?.trim().toLowerCase()
-    if (!email) continue
-    if (body.cityFilter && body.cityFilter !== 'all' && data.city !== body.cityFilter) continue
-    emailSet.add(email)
-  }
-
-  const emails = [...emailSet]
-  if (emails.length === 0) {
+  const uniqueEmails = [...new Set(
+    snap.docs
+      .map(d => (d.data().email as string | undefined)?.trim().toLowerCase())
+      .filter((e): e is string => !!e)
+  )]
+  if (uniqueEmails.length === 0) {
     return NextResponse.json({ sent: 0, message: 'لا يوجد عملاء بإيميل لإرسال الحملة إليهم' })
   }
 
@@ -92,8 +85,8 @@ export async function POST(request: Request) {
   // Send in BCC batches of 50
   const batchSize = 50
   let sent = 0
-  for (let i = 0; i < emails.length; i += batchSize) {
-    const batch = emails.slice(i, i + batchSize)
+  for (let i = 0; i < uniqueEmails.length; i += batchSize) {
+    const batch = uniqueEmails.slice(i, i + batchSize)
     await transporter.sendMail({
       from: `"الركن الخليجي" <${process.env.GMAIL_USER}>`,
       to: process.env.GMAIL_USER,
@@ -102,10 +95,10 @@ export async function POST(request: Request) {
       html,
     })
     sent += batch.length
-    if (i + batchSize < emails.length) {
+    if (i + batchSize < uniqueEmails.length) {
       await new Promise(r => setTimeout(r, 1500))
     }
   }
 
-  return NextResponse.json({ sent, total: emails.length })
+  return NextResponse.json({ sent, total: uniqueEmails.length })
 }
