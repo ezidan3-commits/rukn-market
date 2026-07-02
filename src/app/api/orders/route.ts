@@ -3,6 +3,11 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { getAdminDb } from '@/lib/firebase-admin'
 import { PaymentMethod, PAYMENT_LABEL } from '@/lib/types'
 
+function toFlutterPaymentMethod(method: PaymentMethod): string {
+  if (method === 'vodafone_cash') return 'vodafoneCash'
+  return method
+}
+
 export const runtime = 'nodejs'
 
 type OrderRequestItem = {
@@ -14,6 +19,7 @@ type OrderRequestBody = {
   customerName: string
   customerPhone: string
   city: string
+  address: string
   notes?: string
   payment: PaymentMethod
   items: OrderRequestItem[]
@@ -35,12 +41,14 @@ function validateBody(body: Partial<OrderRequestBody>) {
   const customerName = cleanText(body.customerName)
   const customerPhone = cleanText(body.customerPhone)
   const city = cleanText(body.city)
+  const address = cleanText(body.address)
   const notes = cleanText(body.notes)
   const payment = body.payment
 
   if (!customerName) return { error: 'الاسم مطلوب' }
   if (!/^[0-9]{10,11}$/.test(customerPhone)) return { error: 'رقم هاتف غير صحيح' }
   if (!city) return { error: 'المدينة مطلوبة' }
+  if (!address) return { error: 'العنوان مطلوب' }
   if (!payment || !PAYMENT_LABEL[payment]) return { error: 'طريقة الدفع غير صحيحة' }
   if (!Array.isArray(body.items) || body.items.length === 0) return { error: 'السلة فارغة' }
 
@@ -58,6 +66,7 @@ function validateBody(body: Partial<OrderRequestBody>) {
       customerName,
       customerPhone,
       city,
+      address,
       notes,
       payment,
       items,
@@ -74,6 +83,19 @@ export async function POST(request: Request) {
 
     const data = parsed.value
     const adminDb = getAdminDb()
+
+    const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000)
+    const recentSnap = await adminDb.collection('orders')
+      .where('customerPhone', '==', data.customerPhone)
+      .where('createdAt', '>', fiveMinutesAgo)
+      .limit(1)
+      .get()
+    if (!recentSnap.empty) {
+      return NextResponse.json(
+        { error: 'لقد أرسلت طلبًا مؤخرًا، يرجى الانتظار قليلًا قبل إرسال طلب جديد' },
+        { status: 429 }
+      )
+    }
     const orderNumber = generateOrderNumber()
     const orderRef = adminDb.collection('orders').doc()
 
@@ -81,6 +103,7 @@ export async function POST(request: Request) {
       const productRefs = data.items.map(item => adminDb.collection('products').doc(item.productId))
       const productSnaps = await Promise.all(productRefs.map(ref => tx.get(ref)))
 
+      const flutterPaymentMethod = toFlutterPaymentMethod(data.payment)
       const orderItems = data.items.map((item, index) => {
         const snap = productSnaps[index]
         const product = snap.data()
@@ -98,7 +121,7 @@ export async function POST(request: Request) {
           productId: item.productId,
           quantity: item.quantity,
           discountValue: 0,
-          discountType: 'fixed',
+          discountType: 'amount',
           name: product.name ?? '',
           sellEgp: Number(product.sellEgp ?? 0),
         }
@@ -111,11 +134,14 @@ export async function POST(request: Request) {
         })
       })
 
+      const totalEgp = orderItems.reduce((sum, item) => sum + item.sellEgp * item.quantity, 0)
+
       tx.set(orderRef, {
         orderNumber,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         city: data.city,
+        address: data.address,
         items: orderItems.map(({ productId, quantity, discountValue, discountType }) => ({
           productId,
           quantity,
@@ -123,14 +149,27 @@ export async function POST(request: Request) {
           discountType,
         })),
         marketItems: orderItems,
-        totalEgp: orderItems.reduce((sum, item) => sum + item.sellEgp * item.quantity, 0),
+        totalEgp,
         status: 'newOrder',
         notes: data.notes,
         createdBy: 'ماركت - ' + data.customerName,
         createdAt: Timestamp.now(),
         isVip: false,
         trackingNumber: '',
-        paymentMethod: data.payment,
+        paymentMethod: flutterPaymentMethod,
+        updatedAt: FieldValue.serverTimestamp(),
+      })
+
+      const invoiceRef = adminDb.collection('invoices').doc()
+      tx.set(invoiceRef, {
+        orderId: orderRef.id,
+        amountEgp: totalEgp,
+        paid: false,
+        paidAmountEgp: 0,
+        remainingEgp: totalEgp,
+        paymentMethod: flutterPaymentMethod,
+        payments: [],
+        createdAt: Timestamp.now(),
         updatedAt: FieldValue.serverTimestamp(),
       })
 
@@ -138,7 +177,7 @@ export async function POST(request: Request) {
         id: orderRef.id,
         orderNumber,
         items: orderItems,
-        totalEgp: orderItems.reduce((sum, item) => sum + item.sellEgp * item.quantity, 0),
+        totalEgp,
       }
     })
 

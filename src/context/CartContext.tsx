@@ -8,6 +8,7 @@ interface CartContextType {
   remove: (productId: string) => void
   updateQty: (productId: string, qty: number) => void
   clear: () => void
+  syncWithProducts: (freshProducts: Product[]) => void
   total: number
   count: number
 }
@@ -54,11 +55,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clear = () => setItems([])
 
+  const syncWithProducts = (freshProducts: Product[]) => {
+    setItems(prev => {
+      const updated = prev
+        .map(item => {
+          const fresh = freshProducts.find(p => p.id === item.product.id)
+          if (!fresh || !fresh.visibleInMarket || fresh.quantity <= 0) return null
+          return { product: fresh, quantity: Math.min(item.quantity, fresh.quantity) }
+        })
+        .filter((i): i is CartItem => i !== null)
+      const hasChange = updated.length !== prev.length ||
+        updated.some((u, i) => u.quantity !== prev[i]?.quantity || u.product.sellEgp !== prev[i]?.product.sellEgp)
+      return hasChange ? updated : prev
+    })
+  }
+
   const total = items.reduce((sum, i) => sum + i.product.sellEgp * i.quantity, 0)
   const count = items.reduce((sum, i) => sum + i.quantity, 0)
 
   return (
-    <CartContext.Provider value={{ items, add, remove, updateQty, clear, total, count }}>
+    <CartContext.Provider value={{ items, add, remove, updateQty, clear, syncWithProducts, total, count }}>
       {children}
     </CartContext.Provider>
   )

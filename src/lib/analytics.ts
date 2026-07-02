@@ -30,6 +30,7 @@ function writeStore(store: AnalyticsStore) {
 
 export function trackProductEvent(product: Product, event: AnalyticsEvent) {
   if (typeof window === 'undefined') return
+
   const store = readStore()
   const current = store[product.id] ?? {
     id: product.id,
@@ -38,7 +39,6 @@ export function trackProductEvent(product: Product, event: AnalyticsEvent) {
     cartAdds: 0,
     lastSeenAt: new Date().toISOString(),
   }
-
   store[product.id] = {
     ...current,
     name: product.name,
@@ -46,8 +46,13 @@ export function trackProductEvent(product: Product, event: AnalyticsEvent) {
     cartAdds: current.cartAdds + (event === 'cart_add' ? 1 : 0),
     lastSeenAt: new Date().toISOString(),
   }
-
   writeStore(store)
+
+  fetch('/api/analytics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productId: product.id, productName: product.name, event }),
+  }).catch(() => {})
 }
 
 export function getProductAnalytics() {

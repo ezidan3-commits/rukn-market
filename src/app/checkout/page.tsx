@@ -15,6 +15,7 @@ export default function CheckoutPage() {
     customerName: '',
     customerPhone: '',
     city: '',
+    address: '',
     notes: '',
     payment: 'cash',
   })
@@ -37,6 +38,7 @@ export default function CheckoutPage() {
     if (!form.customerPhone.trim()) e.customerPhone = 'رقم الهاتف مطلوب'
     if (!/^[0-9]{10,11}$/.test(form.customerPhone.trim())) e.customerPhone = 'رقم هاتف غير صحيح'
     if (!form.city.trim()) e.city = 'المدينة مطلوبة'
+    if (!form.address.trim()) e.address = 'العنوان مطلوب'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -54,6 +56,7 @@ export default function CheckoutPage() {
           customerName: form.customerName.trim(),
           customerPhone: form.customerPhone.trim(),
           city: form.city.trim(),
+          address: form.address.trim(),
           notes: form.notes.trim(),
           payment: form.payment,
           items: items.map(i => ({
@@ -76,6 +79,7 @@ export default function CheckoutPage() {
         `الاسم: ${form.customerName.trim()}`,
         `الهاتف: ${form.customerPhone.trim()}`,
         `المدينة: ${form.city.trim()}`,
+        `العنوان: ${form.address.trim()}`,
         '',
         'المنتجات:',
         ...items.map(i => `- ${i.product.name} × ${i.quantity} = ${money(i.product.sellEgp * i.quantity)}`),
@@ -87,7 +91,7 @@ export default function CheckoutPage() {
 
       sessionStorage.setItem('lastOrderId', orderNumber)
       clear()
-      window.open(`https://wa.me/201210729036?text=${encodeURIComponent(waLines)}`, '_blank')
+      window.open(`https://wa.me/${process.env.NEXT_PUBLIC_WA_NUMBER}?text=${encodeURIComponent(waLines)}`, '_blank')
       router.push('/order-success')
     } catch (err: unknown) {
       setSubmitting(false)
@@ -156,6 +160,19 @@ export default function CheckoutPage() {
                   style={{ borderColor: errors.city ? '#ef4444' : '#C9A84C66' }}
                 />
                 {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city}</p>}
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="text-sm font-semibold text-navy block mb-1">العنوان بالتفصيل *</label>
+                <input
+                  type="text"
+                  value={form.address}
+                  onChange={e => setField('address', e.target.value)}
+                  placeholder="مثال: شارع التحرير، بجوار مسجد النور، عمارة 5"
+                  className="w-full border rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
+                  style={{ borderColor: errors.address ? '#ef4444' : '#C9A84C66' }}
+                />
+                {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
               </div>
 
               <div className="sm:col-span-2">

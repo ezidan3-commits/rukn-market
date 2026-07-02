@@ -15,6 +15,9 @@ export default function Header() {
         </Link>
 
         <nav className="flex items-center gap-4">
+          <Link href="/track" className="hidden sm:block text-white/80 hover:text-gold text-sm font-bold transition-colors">
+            تتبع طلبك
+          </Link>
           <Link href="/insights" className="hidden sm:block text-white/80 hover:text-gold text-sm font-bold transition-colors">
             الإحصائيات
           </Link>

@@ -135,7 +135,7 @@ export default function ProductDetailClient({ id }: { id: string }) {
             <span className={`absolute top-3 right-3 text-white text-sm font-bold px-3 py-1 rounded-md shadow-sm ${
               product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
             }`}>
-              {product.quantity <= 3 ? `آخر ${product.quantity} قطع` : `${product.quantity} قطعة متاحة`}
+              {product.quantity === 1 ? 'آخر قطعة' : product.quantity <= 3 ? `آخر ${product.quantity} قطع` : `${product.quantity} قطعة متاحة`}
             </span>
           </div>
 

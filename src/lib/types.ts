@@ -46,6 +46,7 @@ export interface CheckoutForm {
   customerName: string
   customerPhone: string
   city: string
+  address: string
   notes: string
   payment: PaymentMethod
 }

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { collection, limit, onSnapshot, query, where } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
+import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product } from '@/lib/types'
 
@@ -22,6 +23,7 @@ function SkeletonCard() {
 }
 
 export default function HomePage() {
+  const { syncWithProducts } = useCart()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState<string>('الكل')
@@ -41,10 +43,12 @@ export default function HomePage() {
           .map(d => ({ id: d.id, ...d.data() } as Product))
           .filter(p => p.quantity > 0)
         setProducts(list)
+        syncWithProducts(list)
         setLoading(false)
       })
     })
     return () => unsub?.()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const categories = useMemo(
@@ -168,7 +172,7 @@ export default function HomePage() {
               </p>
             )}
           </div>
-          <a href="https://wa.me/201210729036" target="_blank" rel="noopener noreferrer" className="btn-navy py-2 px-4 text-sm">
+          <a href={`https://wa.me/${process.env.NEXT_PUBLIC_WA_NUMBER}`} target="_blank" rel="noopener noreferrer" className="btn-navy py-2 px-4 text-sm">
             تواصل معنا
           </a>
         </div>
@@ -192,7 +196,7 @@ export default function HomePage() {
       <footer className="pt-6 border-t border-gold/20 text-center pb-6">
         <p className="font-black text-navy text-lg mb-1">الركن الخليجي</p>
         <div className="flex items-center justify-center gap-4 mt-2">
-          <a href="https://wa.me/201210729036" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-500 hover:text-green-600 font-semibold">
+          <a href={`https://wa.me/${process.env.NEXT_PUBLIC_WA_NUMBER}`} target="_blank" rel="noopener noreferrer" className="text-sm text-gray-500 hover:text-green-600 font-semibold">
             واتساب
           </a>
           <span className="text-gray-300">|</span>

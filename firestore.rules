@@ -12,7 +12,13 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow read, write: if false;
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /analytics/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     match /{document=**} {

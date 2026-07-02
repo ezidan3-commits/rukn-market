@@ -60,7 +60,7 @@ export default function ProductCard({ product }: { product: Product }) {
           <span className={`absolute top-2 right-2 text-white text-[11px] font-bold px-2 py-1 rounded-md shadow-sm ${
             product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
           }`}>
-            {product.quantity <= 3 ? `آخر ${product.quantity}` : 'متاح'}
+            {product.quantity === 1 ? 'آخر قطعة' : product.quantity <= 3 ? `آخر ${product.quantity} قطع` : 'متاح'}
           </span>
         </div>
       </Link>
