@@ -17,7 +17,9 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow read: if isSignedIn();
+      allow read: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && resource.data.customerUid == request.auth.uid;
       allow write: if false;
     }
 

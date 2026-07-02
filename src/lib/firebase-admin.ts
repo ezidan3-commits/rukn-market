@@ -1,5 +1,6 @@
 import { cert, getApp, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
+import { getAuth } from 'firebase-admin/auth'
 
 const APP_NAME = 'gulf-market-admin'
 
@@ -17,4 +18,8 @@ function initAdminApp() {
 
 export function getAdminDb() {
   return getFirestore(initAdminApp())
+}
+
+export function getAdminAuth() {
+  return getAuth(initAdminApp())
 }

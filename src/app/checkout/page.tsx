@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCart } from '@/context/CartContext'
+import { useAuth } from '@/context/AuthContext'
 import { CheckoutForm, PaymentMethod, PAYMENT_OPTIONS } from '@/lib/types'
 
 export default function CheckoutPage() {
   const router = useRouter()
   const { items, total, clear } = useCart()
+  const { user } = useAuth()
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Partial<CheckoutForm>>({})
 
@@ -49,9 +51,14 @@ export default function CheckoutPage() {
 
     setSubmitting(true)
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (user && !user.isAnonymous) {
+        const token = await user.getIdToken()
+        headers['Authorization'] = `Bearer ${token}`
+      }
       const response = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           customerName: form.customerName.trim(),
           customerPhone: form.customerPhone.trim(),

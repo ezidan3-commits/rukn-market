@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { FieldValue, Timestamp } from 'firebase-admin/firestore'
-import { getAdminDb } from '@/lib/firebase-admin'
+import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 import { PaymentMethod, PAYMENT_LABEL } from '@/lib/types'
 
 function toFlutterPaymentMethod(method: PaymentMethod): string {
@@ -84,6 +84,19 @@ export async function POST(request: Request) {
     const data = parsed.value
     const adminDb = getAdminDb()
 
+    let customerUid: string | null = null
+    const authHeader = request.headers.get('Authorization')
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const decoded = await getAdminAuth().verifyIdToken(authHeader.slice(7))
+        if (decoded.firebase.sign_in_provider !== 'anonymous') {
+          customerUid = decoded.uid
+        }
+      } catch {
+        // invalid token — proceed as guest
+      }
+    }
+
     try {
       const fiveMinutesAgo = Timestamp.fromMillis(Date.now() - 5 * 60 * 1000)
       const recentSnap = await adminDb.collection('orders')
@@ -161,6 +174,7 @@ export async function POST(request: Request) {
         isVip: false,
         trackingNumber: '',
         paymentMethod: flutterPaymentMethod,
+        ...(customerUid ? { customerUid } : {}),
         updatedAt: FieldValue.serverTimestamp(),
       })
 

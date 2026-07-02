@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { CartProvider } from '@/context/CartContext'
+import { AuthProvider } from '@/context/AuthContext'
 import Header from '@/components/Header'
 import BackToTop from '@/components/BackToTop'
 import InstallPWA from '@/components/InstallPWA'
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/logo.png" />
       </head>
       <body className="min-h-screen bg-cream font-arabic">
+        <AuthProvider>
         <CartProvider>
           <Header />
           <main className="max-w-5xl mx-auto px-4 pb-28 pt-4">
@@ -83,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </a>
           </div>
         </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   )
