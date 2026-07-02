@@ -217,7 +217,7 @@ export async function POST(request: Request) {
         notes: data.notes,
         paymentMethod: toFlutterPaymentMethod(data.payment),
       }).catch(err => {
-        console.error('[Resend] order confirmation email failed:', err?.message ?? String(err))
+        console.error('[Gmail] order confirmation email failed:', err?.message ?? String(err))
       })
     }
 
