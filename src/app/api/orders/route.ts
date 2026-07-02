@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 import { PaymentMethod, PAYMENT_LABEL } from '@/lib/types'
+import { sendOrderConfirmationEmail } from '@/lib/send-order-email'
 
 function toFlutterPaymentMethod(method: PaymentMethod): string {
   if (method === 'vodafone_cash') return 'vodafoneCash'
@@ -90,12 +91,14 @@ export async function POST(request: Request) {
     }
 
     let customerUid: string
+    let customerEmail: string | null = null
     try {
       const decoded = await getAdminAuth().verifyIdToken(authHeader.slice(7))
       if (decoded.firebase.sign_in_provider === 'anonymous') {
         return NextResponse.json({ error: 'يجب تسجيل الدخول بحساب حقيقي لإتمام الطلب' }, { status: 401 })
       }
       customerUid = decoded.uid
+      customerEmail = decoded.email ?? null
     } catch {
       return NextResponse.json({ error: 'جلسة منتهية، سجّل الدخول مجدداً' }, { status: 401 })
     }
@@ -201,6 +204,20 @@ export async function POST(request: Request) {
         totalEgp,
       }
     })
+
+    if (customerEmail) {
+      sendOrderConfirmationEmail({
+        customerName: data.customerName,
+        customerEmail,
+        orderNumber: result.orderNumber,
+        items: result.items,
+        totalEgp: result.totalEgp,
+        city: data.city,
+        address: data.address,
+        notes: data.notes,
+        paymentMethod: toFlutterPaymentMethod(data.payment),
+      }).catch(() => {})
+    }
 
     return NextResponse.json(result)
   } catch (err) {
