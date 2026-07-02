@@ -216,7 +216,9 @@ export async function POST(request: Request) {
         address: data.address,
         notes: data.notes,
         paymentMethod: toFlutterPaymentMethod(data.payment),
-      }).catch(() => {})
+      }).catch(err => {
+        console.error('[Resend] order confirmation email failed:', err?.message ?? String(err))
+      })
     }
 
     return NextResponse.json(result)
