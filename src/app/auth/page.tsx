@@ -2,7 +2,11 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { sendPasswordResetEmail } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
 import { useAuth } from '@/context/AuthContext'
+
+type Tab = 'login' | 'register' | 'reset'
 
 export default function AuthPage() {
   const { user, login, register } = useAuth()
@@ -10,16 +14,19 @@ export default function AuthPage() {
   const params = useSearchParams()
   const next = params.get('next') ?? '/'
 
-  const [tab, setTab] = useState<'login' | 'register'>('login')
+  const [tab, setTab] = useState<Tab>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (user) router.replace(next)
   }, [user, next, router])
+
+  const switchTab = (t: Tab) => { setTab(t); setError(''); setSuccess('') }
 
   const errMsg = (code: string) => {
     if (code.includes('user-not-found') || code.includes('wrong-password') || code.includes('invalid-credential'))
@@ -28,12 +35,29 @@ export default function AuthPage() {
     if (code.includes('weak-password')) return 'كلمة المرور ضعيفة (6 أحرف على الأقل)'
     if (code.includes('invalid-email')) return 'بريد إلكتروني غير صالح'
     if (code.includes('too-many-requests')) return 'تم حظر المحاولات مؤقتاً، حاول بعد قليل'
+    if (code.includes('user-not-found')) return 'هذا البريد غير مسجّل'
     return 'حدث خطأ، حاول مرة أخرى'
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
+    setError(''); setSuccess('')
+
+    if (tab === 'reset') {
+      if (!email.trim()) { setError('أدخل بريدك الإلكتروني'); return }
+      setLoading(true)
+      try {
+        await sendPasswordResetEmail(auth, email.trim())
+        setSuccess('تم إرسال رابط إعادة التعيين على بريدك الإلكتروني، راجع صندوق الوارد أو Spam')
+      } catch (err: unknown) {
+        const code = (err as { code?: string }).code ?? ''
+        setError(errMsg(code))
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     if (tab === 'register' && !name.trim()) { setError('الاسم مطلوب'); return }
     if (!email.trim()) { setError('البريد الإلكتروني مطلوب'); return }
     if (password.length < 6) { setError('كلمة المرور 6 أحرف على الأقل'); return }
@@ -61,11 +85,12 @@ export default function AuthPage() {
       </div>
 
       <div className="card p-6">
+        {/* Tabs */}
         <div className="flex rounded-lg overflow-hidden border border-gold/30 mb-5">
           {(['login', 'register'] as const).map(t => (
             <button
               key={t}
-              onClick={() => { setTab(t); setError('') }}
+              onClick={() => switchTab(t)}
               className={`flex-1 py-2.5 text-sm font-black transition-colors ${
                 tab === t ? 'bg-navy text-white' : 'text-navy hover:bg-navy/5'
               }`}
@@ -101,21 +126,46 @@ export default function AuthPage() {
             />
           </div>
 
-          <div>
-            <label className="text-sm font-semibold text-navy block mb-1">كلمة المرور *</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="6 أحرف على الأقل"
-              dir="ltr"
-              className="w-full border border-gold/40 rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
-            />
-          </div>
+          {tab !== 'reset' && (
+            <div>
+              <label className="text-sm font-semibold text-navy block mb-1">كلمة المرور *</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="6 أحرف على الأقل"
+                dir="ltr"
+                className="w-full border border-gold/40 rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
+              />
+            </div>
+          )}
+
+          {tab === 'login' && (
+            <div className="text-left">
+              <button
+                type="button"
+                onClick={() => switchTab('reset')}
+                className="text-xs text-navy/60 hover:text-gold transition-colors"
+              >
+                نسيت كلمة المرور؟
+              </button>
+            </div>
+          )}
+
+          {tab === 'reset' && (
+            <p className="text-xs text-gray-500 bg-gold/10 rounded-lg px-3 py-2">
+              سنرسل لك رابط على بريدك الإلكتروني لإعادة تعيين كلمة المرور.
+            </p>
+          )}
 
           {error && (
             <p className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-green-700 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              {success}
             </p>
           )}
 
@@ -126,8 +176,20 @@ export default function AuthPage() {
           >
             {loading ? (
               <><div className="w-4 h-4 border-2 border-navy border-t-transparent rounded-full animate-spin" /> جاري التحقق...</>
-            ) : tab === 'login' ? 'دخول' : 'إنشاء حساب'}
+            ) : tab === 'login' ? 'دخول'
+              : tab === 'register' ? 'إنشاء حساب'
+              : 'إرسال رابط إعادة التعيين'}
           </button>
+
+          {tab === 'reset' && (
+            <button
+              type="button"
+              onClick={() => switchTab('login')}
+              className="w-full text-center text-sm text-navy/60 hover:text-navy transition-colors mt-1"
+            >
+              العودة لتسجيل الدخول
+            </button>
+          )}
         </form>
       </div>
 
