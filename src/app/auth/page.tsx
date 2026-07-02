@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { sendPasswordResetEmail } from 'firebase/auth'
@@ -8,7 +8,7 @@ import { useAuth } from '@/context/AuthContext'
 
 type Tab = 'login' | 'register' | 'reset'
 
-export default function AuthPage() {
+function AuthForm() {
   const { user, login, register } = useAuth()
   const router = useRouter()
   const params = useSearchParams()
@@ -35,7 +35,6 @@ export default function AuthPage() {
     if (code.includes('weak-password')) return 'كلمة المرور ضعيفة (6 أحرف على الأقل)'
     if (code.includes('invalid-email')) return 'بريد إلكتروني غير صالح'
     if (code.includes('too-many-requests')) return 'تم حظر المحاولات مؤقتاً، حاول بعد قليل'
-    if (code.includes('user-not-found')) return 'هذا البريد غير مسجّل'
     return 'حدث خطأ، حاول مرة أخرى'
   }
 
@@ -50,8 +49,7 @@ export default function AuthPage() {
         await sendPasswordResetEmail(auth, email.trim())
         setSuccess('تم إرسال رابط إعادة التعيين على بريدك الإلكتروني، راجع صندوق الوارد أو Spam')
       } catch (err: unknown) {
-        const code = (err as { code?: string }).code ?? ''
-        setError(errMsg(code))
+        setError(errMsg((err as { code?: string }).code ?? ''))
       } finally {
         setLoading(false)
       }
@@ -70,13 +68,120 @@ export default function AuthPage() {
         await register(email.trim(), password, name.trim())
       }
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code ?? ''
-      setError(errMsg(code))
+      setError(errMsg((err as { code?: string }).code ?? ''))
     } finally {
       setLoading(false)
     }
   }
 
+  return (
+    <div className="card p-6">
+      <div className="flex rounded-lg overflow-hidden border border-gold/30 mb-5">
+        {(['login', 'register'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => switchTab(t)}
+            className={`flex-1 py-2.5 text-sm font-black transition-colors ${
+              tab === t ? 'bg-navy text-white' : 'text-navy hover:bg-navy/5'
+            }`}
+          >
+            {t === 'login' ? 'تسجيل دخول' : 'حساب جديد'}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {tab === 'register' && (
+          <div>
+            <label className="text-sm font-semibold text-navy block mb-1">الاسم الكامل *</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="مثال: أحمد محمد"
+              className="w-full border border-gold/40 rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
+            />
+          </div>
+        )}
+
+        <div>
+          <label className="text-sm font-semibold text-navy block mb-1">البريد الإلكتروني *</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="example@email.com"
+            dir="ltr"
+            className="w-full border border-gold/40 rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
+          />
+        </div>
+
+        {tab !== 'reset' && (
+          <div>
+            <label className="text-sm font-semibold text-navy block mb-1">كلمة المرور *</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="6 أحرف على الأقل"
+              dir="ltr"
+              className="w-full border border-gold/40 rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
+            />
+          </div>
+        )}
+
+        {tab === 'login' && (
+          <div className="text-left">
+            <button
+              type="button"
+              onClick={() => switchTab('reset')}
+              className="text-xs text-navy/60 hover:text-gold transition-colors"
+            >
+              نسيت كلمة المرور؟
+            </button>
+          </div>
+        )}
+
+        {tab === 'reset' && (
+          <p className="text-xs text-gray-500 bg-gold/10 rounded-lg px-3 py-2">
+            سنرسل لك رابط على بريدك الإلكتروني لإعادة تعيين كلمة المرور.
+          </p>
+        )}
+
+        {error && (
+          <p className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+        )}
+        {success && (
+          <p className="text-green-700 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2">{success}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="btn-primary w-full flex items-center justify-center gap-2 mt-2"
+        >
+          {loading
+            ? <><div className="w-4 h-4 border-2 border-navy border-t-transparent rounded-full animate-spin" /> جاري التحقق...</>
+            : tab === 'login' ? 'دخول'
+            : tab === 'register' ? 'إنشاء حساب'
+            : 'إرسال رابط إعادة التعيين'}
+        </button>
+
+        {tab === 'reset' && (
+          <button
+            type="button"
+            onClick={() => switchTab('login')}
+            className="w-full text-center text-sm text-navy/60 hover:text-navy transition-colors mt-1"
+          >
+            العودة لتسجيل الدخول
+          </button>
+        )}
+      </form>
+    </div>
+  )
+}
+
+export default function AuthPage() {
   return (
     <div className="max-w-sm mx-auto py-8">
       <div className="text-center mb-6">
@@ -84,114 +189,13 @@ export default function AuthPage() {
         <p className="text-gray-500 text-sm mt-1">سجّل دخولك لمتابعة طلباتك وإدارتها</p>
       </div>
 
-      <div className="card p-6">
-        {/* Tabs */}
-        <div className="flex rounded-lg overflow-hidden border border-gold/30 mb-5">
-          {(['login', 'register'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => switchTab(t)}
-              className={`flex-1 py-2.5 text-sm font-black transition-colors ${
-                tab === t ? 'bg-navy text-white' : 'text-navy hover:bg-navy/5'
-              }`}
-            >
-              {t === 'login' ? 'تسجيل دخول' : 'حساب جديد'}
-            </button>
-          ))}
+      <Suspense fallback={
+        <div className="card p-6 flex justify-center py-12">
+          <div className="w-8 h-8 border-4 border-navy border-t-transparent rounded-full animate-spin" />
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {tab === 'register' && (
-            <div>
-              <label className="text-sm font-semibold text-navy block mb-1">الاسم الكامل *</label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="مثال: أحمد محمد"
-                className="w-full border border-gold/40 rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
-              />
-            </div>
-          )}
-
-          <div>
-            <label className="text-sm font-semibold text-navy block mb-1">البريد الإلكتروني *</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="example@email.com"
-              dir="ltr"
-              className="w-full border border-gold/40 rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
-            />
-          </div>
-
-          {tab !== 'reset' && (
-            <div>
-              <label className="text-sm font-semibold text-navy block mb-1">كلمة المرور *</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="6 أحرف على الأقل"
-                dir="ltr"
-                className="w-full border border-gold/40 rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
-              />
-            </div>
-          )}
-
-          {tab === 'login' && (
-            <div className="text-left">
-              <button
-                type="button"
-                onClick={() => switchTab('reset')}
-                className="text-xs text-navy/60 hover:text-gold transition-colors"
-              >
-                نسيت كلمة المرور؟
-              </button>
-            </div>
-          )}
-
-          {tab === 'reset' && (
-            <p className="text-xs text-gray-500 bg-gold/10 rounded-lg px-3 py-2">
-              سنرسل لك رابط على بريدك الإلكتروني لإعادة تعيين كلمة المرور.
-            </p>
-          )}
-
-          {error && (
-            <p className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {error}
-            </p>
-          )}
-          {success && (
-            <p className="text-green-700 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-              {success}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full flex items-center justify-center gap-2 mt-2"
-          >
-            {loading ? (
-              <><div className="w-4 h-4 border-2 border-navy border-t-transparent rounded-full animate-spin" /> جاري التحقق...</>
-            ) : tab === 'login' ? 'دخول'
-              : tab === 'register' ? 'إنشاء حساب'
-              : 'إرسال رابط إعادة التعيين'}
-          </button>
-
-          {tab === 'reset' && (
-            <button
-              type="button"
-              onClick={() => switchTab('login')}
-              className="w-full text-center text-sm text-navy/60 hover:text-navy transition-colors mt-1"
-            >
-              العودة لتسجيل الدخول
-            </button>
-          )}
-        </form>
-      </div>
+      }>
+        <AuthForm />
+      </Suspense>
 
       <p className="text-center text-sm text-gray-500 mt-4">
         <Link href="/" className="text-navy font-bold hover:text-gold">العودة للمتجر</Link>
