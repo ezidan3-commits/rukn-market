@@ -14,8 +14,8 @@ function initAdminApp() {
   if (existing) return getApp(APP_NAME)
 
   const rawKey = requiredEnv('FIREBASE_PRIVATE_KEY')
-  // Strip surrounding quotes Vercel sometimes wraps the value in, then convert \n → newline
-  const privateKey = rawKey.replace(/^["']|["']$/g, '').replace(/\\n/g, '\n')
+  // Key is stored as base64 to avoid newline escaping issues across platforms
+  const privateKey = Buffer.from(rawKey.trim(), 'base64').toString('utf8')
 
   return initializeApp({
     credential: cert({
