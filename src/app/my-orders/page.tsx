@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { collection, getDocs, query, where } from 'firebase/firestore'
@@ -16,7 +16,6 @@ const STATUS_LABEL: Record<string, string> = {
   returned: 'مرتجع',
   cancelled: 'ملغي',
 }
-
 const STATUS_COLOR: Record<string, string> = {
   newOrder: 'bg-blue-100 text-blue-800',
   preparing: 'bg-amber-100 text-amber-800',
@@ -27,26 +26,18 @@ const STATUS_COLOR: Record<string, string> = {
   returned: 'bg-red-100 text-red-800',
   cancelled: 'bg-gray-100 text-gray-500',
 }
-
-const CANCELLABLE = ['newOrder', 'preparing']
 const EDITABLE = ['newOrder', 'preparing']
 
+interface MarketItem { name: string; quantity: number; sellEgp: number }
 interface MyOrder {
-  id: string
-  orderNumber: string
-  status: string
-  totalEgp: number
-  city: string
-  address: string
-  notes: string
+  id: string; orderNumber: string; status: string; totalEgp: number
+  city: string; address: string; notes: string
   createdAt: { seconds: number }
-  marketItems?: Array<{ name: string; quantity: number; sellEgp: number }>
+  items?: Array<{ productId: string; quantity: number }>
+  marketItems?: MarketItem[]
 }
-
-interface EditState {
-  address: string
-  notes: string
-}
+interface Product { id: string; name: string; sellEgp: number; quantity: number; imageUrl?: string; visibleInMarket: boolean }
+interface DraftItem { productId: string; name: string; sellEgp: number; quantity: number }
 
 export default function MyOrdersPage() {
   const { user, loading: authLoading } = useAuth()
@@ -54,40 +45,119 @@ export default function MyOrdersPage() {
   const [orders, setOrders] = useState<MyOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editState, setEditState] = useState<EditState>({ address: '', notes: '' })
-  const [savingEdit, setSavingEdit] = useState(false)
+
+  // Address edit
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null)
+  const [addrState, setAddrState] = useState({ address: '', notes: '' })
+  const [savingAddr, setSavingAddr] = useState(false)
+
+  // Items edit
+  const [editingItemsId, setEditingItemsId] = useState<string | null>(null)
+  const [draftItems, setDraftItems] = useState<DraftItem[]>([])
+  const [savingItems, setSavingItems] = useState(false)
+  const [products, setProducts] = useState<Product[]>([])
+  const [productsLoading, setProductsLoading] = useState(false)
+  const [search, setSearch] = useState('')
 
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
 
+  const getToken = async () => {
+    if (!user) throw new Error('غير مسجّل')
+    return user.getIdToken()
+  }
+
+  // Load orders
   useEffect(() => {
     if (authLoading) return
     if (!user) { router.replace('/auth?next=/my-orders'); return }
-
     const load = async () => {
       try {
-        const snap = await getDocs(
-          query(
-            collection(db, 'orders'),
-            where('customerUid', '==', user.uid)
-          )
-        )
+        const snap = await getDocs(query(collection(db, 'orders'), where('customerUid', '==', user.uid)))
         const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as MyOrder))
         list.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
         setOrders(list)
-      } catch (err) {
-        console.error('my-orders load error:', err)
-      } finally {
-        setLoading(false)
-      }
+      } catch (err) { console.error(err) }
+      finally { setLoading(false) }
     }
     load()
   }, [user, authLoading, router])
 
-  const getToken = async () => {
-    if (!user) throw new Error('غير مسجّل')
-    return user.getIdToken()
+  // Load products when entering items-edit mode
+  const loadProducts = async () => {
+    if (products.length > 0) return
+    setProductsLoading(true)
+    try {
+      const snap = await getDocs(query(collection(db, 'products'), where('visibleInMarket', '==', true)))
+      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Product)))
+    } catch (err) { console.error(err) }
+    finally { setProductsLoading(false) }
+  }
+
+  const startEditItems = async (order: MyOrder) => {
+    const initial: DraftItem[] = (order.marketItems ?? []).map((mi, i) => ({
+      productId: order.items?.[i]?.productId ?? '',
+      name: mi.name,
+      sellEgp: mi.sellEgp,
+      quantity: mi.quantity,
+    }))
+    setDraftItems(initial)
+    setSearch('')
+    setEditingItemsId(order.id)
+    await loadProducts()
+  }
+
+  const draftTotal = useMemo(
+    () => draftItems.reduce((s, i) => s + i.sellEgp * i.quantity, 0),
+    [draftItems]
+  )
+
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return []
+    return products.filter(p =>
+      p.name.toLowerCase().includes(q) &&
+      !draftItems.some(d => d.productId === p.id)
+    ).slice(0, 6)
+  }, [search, products, draftItems])
+
+  const addProduct = (p: Product) => {
+    setDraftItems(prev => [...prev, { productId: p.id, name: p.name, sellEgp: p.sellEgp, quantity: 1 }])
+    setSearch('')
+  }
+
+  const changeQty = (productId: string, delta: number) => {
+    setDraftItems(prev => prev.map(i =>
+      i.productId === productId
+        ? { ...i, quantity: Math.max(1, Math.min(99, i.quantity + delta)) }
+        : i
+    ))
+  }
+
+  const removeItem = (productId: string) => {
+    setDraftItems(prev => prev.filter(i => i.productId !== productId))
+  }
+
+  const handleSaveItems = async (order: MyOrder) => {
+    setSavingItems(true)
+    try {
+      const token = await getToken()
+      const res = await fetch(`/api/orders/${order.id}/edit-items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ items: draftItems.map(i => ({ productId: i.productId, quantity: i.quantity })) }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setOrders(prev => prev.map(o => o.id === order.id ? {
+        ...o,
+        items: draftItems.map(i => ({ productId: i.productId, quantity: i.quantity })),
+        marketItems: draftItems.map(i => ({ name: i.name, sellEgp: i.sellEgp, quantity: i.quantity })),
+        totalEgp: draftTotal,
+      } : o))
+      setEditingItemsId(null)
+    } catch (err) { alert(err instanceof Error ? err.message : 'حدث خطأ') }
+    finally { setSavingItems(false) }
   }
 
   const handleCancel = async (order: MyOrder) => {
@@ -96,53 +166,37 @@ export default function MyOrdersPage() {
     try {
       const token = await getToken()
       const res = await fetch(`/api/orders/${order.id}/cancel`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o))
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'حدث خطأ')
-    } finally {
-      setCancellingId(null)
-    }
+    } catch (err) { alert(err instanceof Error ? err.message : 'حدث خطأ') }
+    finally { setCancellingId(null) }
   }
 
-  const startEdit = (order: MyOrder) => {
-    setEditingId(order.id)
-    setEditState({ address: order.address, notes: order.notes ?? '' })
-  }
-
-  const handleSaveEdit = async (order: MyOrder) => {
-    setSavingEdit(true)
+  const handleSaveAddr = async (order: MyOrder) => {
+    setSavingAddr(true)
     try {
       const token = await getToken()
       const res = await fetch(`/api/orders/${order.id}/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ address: editState.address, notes: editState.notes }),
+        body: JSON.stringify(addrState),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setOrders(prev => prev.map(o =>
-        o.id === order.id ? { ...o, address: editState.address, notes: editState.notes } : o
-      ))
-      setEditingId(null)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'حدث خطأ')
-    } finally {
-      setSavingEdit(false)
-    }
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, ...addrState } : o))
+      setEditingAddressId(null)
+    } catch (err) { alert(err instanceof Error ? err.message : 'حدث خطأ') }
+    finally { setSavingAddr(false) }
   }
 
-  if (authLoading || loading) {
-    return (
-      <div className="flex justify-center items-center py-20">
-        <div className="w-8 h-8 border-4 border-navy border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
+  if (authLoading || loading) return (
+    <div className="flex justify-center items-center py-20">
+      <div className="w-8 h-8 border-4 border-navy border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -165,13 +219,12 @@ export default function MyOrdersPage() {
           {orders.map(order => (
             <div key={order.id} className="card overflow-hidden">
               <div className="p-4">
+                {/* Header */}
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <p className="font-mono text-sm font-bold text-navy">{order.orderNumber}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {order.createdAt
-                        ? new Date(order.createdAt.seconds * 1000).toLocaleDateString('ar-EG')
-                        : ''}
+                      {order.createdAt ? new Date(order.createdAt.seconds * 1000).toLocaleDateString('ar-EG') : ''}
                     </p>
                   </div>
                   <span className={`text-xs font-black px-3 py-1 rounded-full ${STATUS_COLOR[order.status] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -179,78 +232,145 @@ export default function MyOrdersPage() {
                   </span>
                 </div>
 
-                {order.marketItems && order.marketItems.length > 0 && (
-                  <div className="space-y-1 mb-3">
-                    {order.marketItems.map((item, i) => (
-                      <div key={i} className="flex justify-between text-sm text-gray-600">
-                        <span>{item.name} × {item.quantity}</span>
-                        <span className="font-bold text-navy">{money(item.sellEgp * item.quantity)}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {/* Items edit mode */}
+                {editingItemsId === order.id ? (
+                  <div className="mt-2 space-y-3">
+                    {/* Draft items */}
+                    <div className="space-y-2">
+                      {draftItems.map(item => (
+                        <div key={item.productId} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-navy truncate">{item.name}</p>
+                            <p className="text-xs text-gold">{money(item.sellEgp)}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => changeQty(item.productId, -1)}
+                              className="w-7 h-7 rounded-lg border border-gold/40 text-navy font-black hover:bg-gold/10 flex items-center justify-center text-lg leading-none">−</button>
+                            <span className="w-8 text-center text-sm font-black text-navy">{item.quantity}</span>
+                            <button onClick={() => changeQty(item.productId, 1)}
+                              className="w-7 h-7 rounded-lg border border-gold/40 text-navy font-black hover:bg-gold/10 flex items-center justify-center text-lg leading-none">+</button>
+                          </div>
+                          <button onClick={() => removeItem(item.productId)}
+                            className="text-red-400 hover:text-red-600 p-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
 
-                <div className="flex justify-between items-center pt-2 border-t border-gold/10">
-                  <span className="text-xs text-gray-500">{order.city}</span>
-                  <span className="font-black text-gold">{money(order.totalEgp)}</span>
-                </div>
-
-                {editingId === order.id ? (
-                  <div className="mt-3 pt-3 border-t border-gold/20 space-y-3">
-                    <div>
-                      <label className="text-xs font-bold text-navy block mb-1">العنوان *</label>
+                    {/* Add product search */}
+                    <div className="relative">
                       <input
                         type="text"
-                        value={editState.address}
-                        onChange={e => setEditState(s => ({ ...s, address: e.target.value }))}
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="ابحث عن منتج لإضافته..."
                         className="w-full border border-gold/40 rounded-lg px-3 py-2 text-sm text-navy focus:outline-none focus:border-gold"
                       />
+                      {productsLoading && (
+                        <div className="absolute left-3 top-2.5">
+                          <div className="w-4 h-4 border-2 border-navy border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                      {filteredProducts.length > 0 && (
+                        <div className="absolute top-full mt-1 w-full bg-white border border-gold/30 rounded-lg shadow-lg z-10 overflow-hidden">
+                          {filteredProducts.map(p => (
+                            <button
+                              key={p.id}
+                              onClick={() => addProduct(p)}
+                              className="w-full text-right px-3 py-2.5 hover:bg-gold/10 flex justify-between items-center border-b border-gold/10 last:border-0"
+                            >
+                              <span className="text-sm text-navy font-bold">{p.name}</span>
+                              <span className="text-xs text-gold font-black">{money(p.sellEgp)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <label className="text-xs font-bold text-navy block mb-1">ملاحظات</label>
-                      <textarea
-                        value={editState.notes}
-                        onChange={e => setEditState(s => ({ ...s, notes: e.target.value }))}
-                        rows={2}
-                        className="w-full border border-gold/40 rounded-lg px-3 py-2 text-sm text-navy focus:outline-none focus:border-gold resize-none"
-                      />
+
+                    {/* Total + actions */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gold/20">
+                      <span className="text-sm text-gray-500">الإجمالي الجديد</span>
+                      <span className="font-black text-gold">{money(draftTotal)}</span>
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => handleSaveEdit(order)}
-                        disabled={savingEdit}
-                        className="flex-1 bg-navy text-white text-sm font-bold py-2 rounded-lg hover:bg-navy/90 disabled:opacity-50"
+                        onClick={() => handleSaveItems(order)}
+                        disabled={savingItems || draftItems.length === 0}
+                        className="flex-1 bg-navy text-white text-sm font-bold py-2.5 rounded-lg hover:bg-navy/90 disabled:opacity-50"
                       >
-                        {savingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+                        {savingItems ? 'جاري الحفظ...' : 'حفظ التعديلات'}
                       </button>
-                      <button
-                        onClick={() => setEditingId(null)}
-                        className="px-4 py-2 text-sm font-bold text-navy border border-gold/30 rounded-lg hover:bg-gold/10"
-                      >
+                      <button onClick={() => setEditingItemsId(null)}
+                        className="px-4 py-2 text-sm font-bold text-navy border border-gold/30 rounded-lg hover:bg-gold/10">
                         إلغاء
                       </button>
                     </div>
                   </div>
                 ) : (
-                  EDITABLE.includes(order.status) && (
-                    <div className="mt-3 pt-3 border-t border-gold/10 flex gap-2">
-                      <button
-                        onClick={() => startEdit(order)}
-                        className="flex-1 text-sm font-bold py-2 rounded-lg border border-navy text-navy hover:bg-navy/5"
-                      >
-                        تعديل العنوان
-                      </button>
-                      {CANCELLABLE.includes(order.status) && (
-                        <button
-                          onClick={() => handleCancel(order)}
-                          disabled={cancellingId === order.id}
-                          className="flex-1 text-sm font-bold py-2 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {cancellingId === order.id ? 'جاري الإلغاء...' : 'إلغاء الطلب'}
-                        </button>
-                      )}
+                  <>
+                    {/* Items display */}
+                    {order.marketItems && order.marketItems.length > 0 && (
+                      <div className="space-y-1 mb-3">
+                        {order.marketItems.map((item, i) => (
+                          <div key={i} className="flex justify-between text-sm text-gray-600">
+                            <span>{item.name} × {item.quantity}</span>
+                            <span className="font-bold text-navy">{money(item.sellEgp * item.quantity)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center pt-2 border-t border-gold/10">
+                      <span className="text-xs text-gray-500">{order.city}</span>
+                      <span className="font-black text-gold">{money(order.totalEgp)}</span>
                     </div>
-                  )
+
+                    {/* Address edit inline */}
+                    {editingAddressId === order.id ? (
+                      <div className="mt-3 pt-3 border-t border-gold/20 space-y-3">
+                        <div>
+                          <label className="text-xs font-bold text-navy block mb-1">العنوان *</label>
+                          <input type="text" value={addrState.address}
+                            onChange={e => setAddrState(s => ({ ...s, address: e.target.value }))}
+                            className="w-full border border-gold/40 rounded-lg px-3 py-2 text-sm text-navy focus:outline-none focus:border-gold" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-navy block mb-1">ملاحظات</label>
+                          <textarea value={addrState.notes} rows={2}
+                            onChange={e => setAddrState(s => ({ ...s, notes: e.target.value }))}
+                            className="w-full border border-gold/40 rounded-lg px-3 py-2 text-sm text-navy focus:outline-none focus:border-gold resize-none" />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleSaveAddr(order)} disabled={savingAddr}
+                            className="flex-1 bg-navy text-white text-sm font-bold py-2 rounded-lg hover:bg-navy/90 disabled:opacity-50">
+                            {savingAddr ? 'جاري الحفظ...' : 'حفظ العنوان'}
+                          </button>
+                          <button onClick={() => setEditingAddressId(null)}
+                            className="px-4 py-2 text-sm font-bold text-navy border border-gold/30 rounded-lg hover:bg-gold/10">
+                            إلغاء
+                          </button>
+                        </div>
+                      </div>
+                    ) : EDITABLE.includes(order.status) && (
+                      <div className="mt-3 pt-3 border-t border-gold/10 grid grid-cols-3 gap-2">
+                        <button onClick={() => startEditItems(order)}
+                          className="text-xs font-bold py-2 rounded-lg border border-navy text-navy hover:bg-navy/5">
+                          تعديل المنتجات
+                        </button>
+                        <button onClick={() => { setEditingAddressId(order.id); setAddrState({ address: order.address, notes: order.notes ?? '' }) }}
+                          className="text-xs font-bold py-2 rounded-lg border border-navy text-navy hover:bg-navy/5">
+                          تعديل العنوان
+                        </button>
+                        <button onClick={() => handleCancel(order)} disabled={cancellingId === order.id}
+                          className="text-xs font-bold py-2 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50">
+                          {cancellingId === order.id ? '...' : 'إلغاء الطلب'}
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
