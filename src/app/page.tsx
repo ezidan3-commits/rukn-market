@@ -6,6 +6,7 @@ import ProductCard from '@/components/ProductCard'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product, ProductCategory } from '@/lib/types'
+import { DRAFT_KEY, type DraftItem, type EditOrderDraft } from '@/app/my-orders/page'
 
 type SortOption = 'default' | 'price_asc' | 'price_desc'
 
@@ -31,10 +32,34 @@ export default function HomePage() {
   const [search, setSearch] = useState<string>('')
   const [sort, setSort] = useState<SortOption>('default')
 
+  // Edit-order mode (detected from sessionStorage)
+  const [editDraft, setEditDraft] = useState<EditOrderDraft | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY)
+      if (raw) setEditDraft(JSON.parse(raw) as EditOrderDraft)
+    } catch { /* ignore */ }
+  }, [])
+
+  const handleAddToOrder = (product: Product) => {
+    setEditDraft(prev => {
+      if (!prev) return prev
+      const existing = prev.draftItems.find(i => i.productId === product.id)
+      const newItems: DraftItem[] = existing
+        ? prev.draftItems.map(i =>
+            i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
+          )
+        : [...prev.draftItems, { productId: product.id, name: product.name, sellEgp: product.sellEgp, quantity: 1 }]
+      const updated = { ...prev, draftItems: newItems }
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(updated))
+      return updated
+    })
+  }
+
   useEffect(() => {
     let unsub: (() => void) | undefined
     ensureAuth().then(async () => {
-      // Load category names once
       const catSnap = await getDocs(collection(db, 'productCategories'))
       const map: Record<string, string> = {}
       catSnap.docs.forEach(d => {
@@ -87,8 +112,35 @@ export default function HomePage() {
     [products]
   )
 
+  const addedCount = editDraft?.draftItems.reduce((s, i) => s + i.quantity, 0) ?? 0
+
   return (
     <div className="space-y-5">
+
+      {/* ── Edit-order banner ── */}
+      {editDraft && (
+        <div className="sticky top-16 z-50 -mx-4 px-4 py-3 bg-navy text-white flex items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-2 min-w-0">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gold flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <div className="min-w-0">
+              <p className="text-sm font-black truncate">تعديل الطلب {editDraft.orderNumber}</p>
+              <p className="text-xs text-white/70">
+                اضغط على أي منتج لإضافته للطلب
+                {addedCount > 0 && ` · ${addedCount} منتج مضاف`}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/my-orders"
+            className="flex-shrink-0 bg-gold text-navy text-xs font-black px-3 py-2 rounded-lg hover:bg-gold/90 whitespace-nowrap"
+          >
+            العودة للطلب ←
+          </Link>
+        </div>
+      )}
+
       <section className="bg-navy text-white rounded-lg overflow-hidden border border-navy-dark">
         <div className="p-5 sm:p-6">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -202,7 +254,15 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filtered.map(p => <ProductCard key={p.id} product={p} />)}
+            {filtered.map(p => (
+              <ProductCard
+                key={p.id}
+                product={p}
+                editOrderMode={!!editDraft}
+                draftQty={editDraft?.draftItems.find(d => d.productId === p.id)?.quantity ?? 0}
+                onAddToOrder={handleAddToOrder}
+              />
+            ))}
           </div>
         )}
       </section>

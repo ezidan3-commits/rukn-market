@@ -27,6 +27,7 @@ const STATUS_COLOR: Record<string, string> = {
   cancelled: 'bg-gray-100 text-gray-500',
 }
 const EDITABLE = ['newOrder', 'preparing']
+export const DRAFT_KEY = 'editOrderDraft'
 
 interface MarketItem { name: string; quantity: number; sellEgp: number }
 interface MyOrder {
@@ -36,8 +37,8 @@ interface MyOrder {
   items?: Array<{ productId: string; quantity: number }>
   marketItems?: MarketItem[]
 }
-interface Product { id: string; name: string; sellEgp: number; quantity: number; imageUrl?: string; visibleInMarket: boolean }
-interface DraftItem { productId: string; name: string; sellEgp: number; quantity: number }
+export interface DraftItem { productId: string; name: string; sellEgp: number; quantity: number }
+export interface EditOrderDraft { orderId: string; orderNumber: string; draftItems: DraftItem[] }
 
 export default function MyOrdersPage() {
   const { user, loading: authLoading } = useAuth()
@@ -55,9 +56,6 @@ export default function MyOrdersPage() {
   const [editingItemsId, setEditingItemsId] = useState<string | null>(null)
   const [draftItems, setDraftItems] = useState<DraftItem[]>([])
   const [savingItems, setSavingItems] = useState(false)
-  const [products, setProducts] = useState<Product[]>([])
-  const [productsLoading, setProductsLoading] = useState(false)
-  const [search, setSearch] = useState('')
 
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
@@ -67,7 +65,7 @@ export default function MyOrdersPage() {
     return user.getIdToken()
   }
 
-  // Load orders
+  // Load orders — and restore edit mode if returning from the products page
   useEffect(() => {
     if (authLoading) return
     if (!user) { router.replace('/auth?next=/my-orders'); return }
@@ -77,24 +75,42 @@ export default function MyOrdersPage() {
         const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as MyOrder))
         list.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
         setOrders(list)
+
+        // Restore draft if user came back from products page
+        try {
+          const raw = sessionStorage.getItem(DRAFT_KEY)
+          if (raw) {
+            const draft: EditOrderDraft = JSON.parse(raw)
+            const order = list.find(o => o.id === draft.orderId)
+            if (order && EDITABLE.includes(order.status)) {
+              setDraftItems(draft.draftItems)
+              setEditingItemsId(draft.orderId)
+            } else {
+              sessionStorage.removeItem(DRAFT_KEY)
+            }
+          }
+        } catch { /* ignore */ }
       } catch (err) { console.error(err) }
       finally { setLoading(false) }
     }
     load()
   }, [user, authLoading, router])
 
-  // Load products when entering items-edit mode
-  const loadProducts = async () => {
-    if (products.length > 0) return
-    setProductsLoading(true)
-    try {
-      const snap = await getDocs(query(collection(db, 'products'), where('visibleInMarket', '==', true)))
-      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Product)))
-    } catch (err) { console.error(err) }
-    finally { setProductsLoading(false) }
-  }
+  // Keep sessionStorage in sync whenever draft changes
+  useEffect(() => {
+    if (!editingItemsId) return
+    const order = orders.find(o => o.id === editingItemsId)
+    if (!order) return
+    const draft: EditOrderDraft = { orderId: editingItemsId, orderNumber: order.orderNumber, draftItems }
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+  }, [draftItems, editingItemsId, orders])
 
-  const startEditItems = async (order: MyOrder) => {
+  const draftTotal = useMemo(
+    () => draftItems.reduce((s, i) => s + i.sellEgp * i.quantity, 0),
+    [draftItems]
+  )
+
+  const startEditItems = (order: MyOrder) => {
     const initial: DraftItem[] = (order.marketItems ?? []).map((mi, i) => ({
       productId: order.items?.[i]?.productId ?? '',
       name: mi.name,
@@ -102,28 +118,22 @@ export default function MyOrdersPage() {
       quantity: mi.quantity,
     }))
     setDraftItems(initial)
-    setSearch('')
     setEditingItemsId(order.id)
-    await loadProducts()
+    // Persist to sessionStorage immediately so goToAddProduct can read it
+    const draft: EditOrderDraft = { orderId: order.id, orderNumber: order.orderNumber, draftItems: initial }
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
   }
 
-  const draftTotal = useMemo(
-    () => draftItems.reduce((s, i) => s + i.sellEgp * i.quantity, 0),
-    [draftItems]
-  )
+  const cancelEditItems = () => {
+    setEditingItemsId(null)
+    setDraftItems([])
+    sessionStorage.removeItem(DRAFT_KEY)
+  }
 
-  const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return []
-    return products.filter(p =>
-      p.name.toLowerCase().includes(q) &&
-      !draftItems.some(d => d.productId === p.id)
-    ).slice(0, 6)
-  }, [search, products, draftItems])
-
-  const addProduct = (p: Product) => {
-    setDraftItems(prev => [...prev, { productId: p.id, name: p.name, sellEgp: p.sellEgp, quantity: 1 }])
-    setSearch('')
+  // Navigate to products page in "add to order" mode
+  const goToAddProduct = () => {
+    // draft is already in sessionStorage — products page will detect it
+    router.push('/')
   }
 
   const changeQty = (productId: string, delta: number) => {
@@ -155,7 +165,9 @@ export default function MyOrdersPage() {
         marketItems: draftItems.map(i => ({ name: i.name, sellEgp: i.sellEgp, quantity: i.quantity })),
         totalEgp: draftTotal,
       } : o))
+      sessionStorage.removeItem(DRAFT_KEY)
       setEditingItemsId(null)
+      setDraftItems([])
     } catch (err) { alert(err instanceof Error ? err.message : 'حدث خطأ') }
     finally { setSavingItems(false) }
   }
@@ -219,7 +231,8 @@ export default function MyOrdersPage() {
           {orders.map(order => (
             <div key={order.id} className="card overflow-hidden">
               <div className="p-4">
-                {/* Header */}
+
+                {/* Header row */}
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <p className="font-mono text-sm font-bold text-navy">{order.orderNumber}</p>
@@ -232,68 +245,67 @@ export default function MyOrdersPage() {
                   </span>
                 </div>
 
-                {/* Items edit mode */}
+                {/* ── EDIT MODE ── */}
                 {editingItemsId === order.id ? (
-                  <div className="mt-2 space-y-3">
-                    {/* Draft items */}
-                    <div className="space-y-2">
-                      {draftItems.map(item => (
-                        <div key={item.productId} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-navy truncate">{item.name}</p>
-                            <p className="text-xs text-gold">{money(item.sellEgp)}</p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => changeQty(item.productId, -1)}
-                              className="w-7 h-7 rounded-lg border border-gold/40 text-navy font-black hover:bg-gold/10 flex items-center justify-center text-lg leading-none">−</button>
-                            <span className="w-8 text-center text-sm font-black text-navy">{item.quantity}</span>
-                            <button onClick={() => changeQty(item.productId, 1)}
-                              className="w-7 h-7 rounded-lg border border-gold/40 text-navy font-black hover:bg-gold/10 flex items-center justify-center text-lg leading-none">+</button>
-                          </div>
-                          <button onClick={() => removeItem(item.productId)}
-                            className="text-red-400 hover:text-red-600 p-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="space-y-3">
 
-                    {/* Add product search */}
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        placeholder="ابحث عن منتج لإضافته..."
-                        className="w-full border border-gold/40 rounded-lg px-3 py-2 text-sm text-navy focus:outline-none focus:border-gold"
-                      />
-                      {productsLoading && (
-                        <div className="absolute left-3 top-2.5">
-                          <div className="w-4 h-4 border-2 border-navy border-t-transparent rounded-full animate-spin" />
-                        </div>
-                      )}
-                      {filteredProducts.length > 0 && (
-                        <div className="absolute top-full mt-1 w-full bg-white border border-gold/30 rounded-lg shadow-lg z-10 overflow-hidden">
-                          {filteredProducts.map(p => (
-                            <button
-                              key={p.id}
-                              onClick={() => addProduct(p)}
-                              className="w-full text-right px-3 py-2.5 hover:bg-gold/10 flex justify-between items-center border-b border-gold/10 last:border-0"
-                            >
-                              <span className="text-sm text-navy font-bold">{p.name}</span>
-                              <span className="text-xs text-gold font-black">{money(p.sellEgp)}</span>
-                            </button>
+                    {/* Section: edit quantities */}
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">تعديل الكميات</p>
+                      {draftItems.length === 0 ? (
+                        <p className="text-sm text-gray-400 text-center py-3 border border-dashed border-gold/30 rounded-lg">
+                          لا يوجد منتجات — أضف منتجاً أو ألغِ الطلب
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {draftItems.map(item => (
+                            <div key={item.productId} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-navy truncate">{item.name}</p>
+                                <p className="text-xs text-gold">{money(item.sellEgp)}</p>
+                              </div>
+                              {/* +/- */}
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  onClick={() => changeQty(item.productId, -1)}
+                                  className="w-7 h-7 rounded-lg border border-gold/40 text-navy font-black hover:bg-gold/10 flex items-center justify-center text-base"
+                                >−</button>
+                                <span className="w-8 text-center text-sm font-black text-navy">{item.quantity}</span>
+                                <button
+                                  onClick={() => changeQty(item.productId, 1)}
+                                  className="w-7 h-7 rounded-lg border border-gold/40 text-navy font-black hover:bg-gold/10 flex items-center justify-center text-base"
+                                >+</button>
+                              </div>
+                              {/* delete */}
+                              <button onClick={() => removeItem(item.productId)} className="text-red-400 hover:text-red-600 p-1 flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
                           ))}
                         </div>
                       )}
                     </div>
 
-                    {/* Total + actions */}
+                    {/* Section: add product → go to store */}
+                    <div>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">إضافة منتج جديد</p>
+                      <button
+                        onClick={goToAddProduct}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 border-dashed border-navy/30 text-navy text-sm font-bold hover:border-navy hover:bg-navy/5 transition-all"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                        </svg>
+                        تصفّح المنتجات وأضف للطلب
+                      </button>
+                    </div>
+
+                    {/* Total + save/cancel */}
                     <div className="flex items-center justify-between pt-2 border-t border-gold/20">
                       <span className="text-sm text-gray-500">الإجمالي الجديد</span>
-                      <span className="font-black text-gold">{money(draftTotal)}</span>
+                      <span className="font-black text-gold text-lg">{money(draftTotal)}</span>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -303,15 +315,18 @@ export default function MyOrdersPage() {
                       >
                         {savingItems ? 'جاري الحفظ...' : 'حفظ التعديلات'}
                       </button>
-                      <button onClick={() => setEditingItemsId(null)}
-                        className="px-4 py-2 text-sm font-bold text-navy border border-gold/30 rounded-lg hover:bg-gold/10">
+                      <button
+                        onClick={cancelEditItems}
+                        className="px-4 py-2 text-sm font-bold text-navy border border-gold/30 rounded-lg hover:bg-gold/10"
+                      >
                         إلغاء
                       </button>
                     </div>
                   </div>
+
                 ) : (
+                  /* ── NORMAL VIEW ── */
                   <>
-                    {/* Items display */}
                     {order.marketItems && order.marketItems.length > 0 && (
                       <div className="space-y-1 mb-3">
                         {order.marketItems.map((item, i) => (
@@ -358,7 +373,7 @@ export default function MyOrdersPage() {
                       <div className="mt-3 pt-3 border-t border-gold/10 grid grid-cols-3 gap-2">
                         <button onClick={() => startEditItems(order)}
                           className="text-xs font-bold py-2 rounded-lg border border-navy text-navy hover:bg-navy/5">
-                          تعديل المنتجات
+                          تعديل الطلب
                         </button>
                         <button onClick={() => { setEditingAddressId(order.id); setAddrState({ address: order.address, notes: order.notes ?? '' }) }}
                           className="text-xs font-bold py-2 rounded-lg border border-navy text-navy hover:bg-navy/5">

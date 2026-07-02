@@ -14,20 +14,34 @@ function ProductFallbackIcon({ size = 'w-14 h-14' }: { size?: string }) {
   )
 }
 
-export default function ProductCard({ product }: { product: Product }) {
+interface Props {
+  product: Product
+  // When true the card is in "add to order" mode instead of "add to cart"
+  editOrderMode?: boolean
+  draftQty?: number
+  onAddToOrder?: (product: Product) => void
+}
+
+export default function ProductCard({ product, editOrderMode = false, draftQty = 0, onAddToOrder }: Props) {
   const { add, items } = useCart()
   const inCart = items.find(i => i.product.id === product.id)
   const imgSrc = productImageSrc(product)
-  const [added, setAdded] = useState(false)
+  const [justAdded, setJustAdded] = useState(false)
 
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
 
-  const handleAdd = () => {
+  const handleAddToCart = () => {
     add(product)
     trackProductEvent(product, 'cart_add')
-    setAdded(true)
-    setTimeout(() => setAdded(false), 1200)
+    setJustAdded(true)
+    setTimeout(() => setJustAdded(false), 1200)
+  }
+
+  const handleAddToOrder = () => {
+    onAddToOrder?.(product)
+    setJustAdded(true)
+    setTimeout(() => setJustAdded(false), 1200)
   }
 
   return (
@@ -62,6 +76,13 @@ export default function ProductCard({ product }: { product: Product }) {
           }`}>
             {product.quantity === 1 ? 'آخر قطعة' : product.quantity <= 3 ? `آخر ${product.quantity} قطع` : 'متاح'}
           </span>
+
+          {/* Badge: quantity already in the order draft */}
+          {editOrderMode && draftQty > 0 && (
+            <span className="absolute top-2 left-2 bg-navy text-white text-[11px] font-black px-2 py-1 rounded-md shadow-sm">
+              × {draftQty}
+            </span>
+          )}
         </div>
       </Link>
 
@@ -79,21 +100,41 @@ export default function ProductCard({ product }: { product: Product }) {
         <div className="mt-auto flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <span className="text-gold font-black text-base">{money(product.sellEgp)}</span>
-            {inCart && <span className="text-[11px] text-navy font-bold bg-navy/5 px-2 py-1 rounded-md">× {inCart.quantity}</span>}
+            {/* Cart count badge — only in normal mode */}
+            {!editOrderMode && inCart && (
+              <span className="text-[11px] text-navy font-bold bg-navy/5 px-2 py-1 rounded-md">× {inCart.quantity}</span>
+            )}
           </div>
 
-          <button
-            onClick={handleAdd}
-            className={`w-full text-xs font-black py-2.5 px-3 rounded-lg transition-all duration-200 active:scale-[0.98] ${
-              added
-                ? 'bg-green-600 text-white'
-                : inCart
-                  ? 'bg-navy text-white hover:bg-navy-light'
-                  : 'bg-gold text-navy hover:bg-gold-dark'
-            }`}
-          >
-            {added ? 'تمت الإضافة' : inCart ? 'أضف قطعة أخرى' : 'أضف للسلة'}
-          </button>
+          {editOrderMode ? (
+            /* Add-to-order button */
+            <button
+              onClick={handleAddToOrder}
+              className={`w-full text-xs font-black py-2.5 px-3 rounded-lg transition-all duration-200 active:scale-[0.98] ${
+                justAdded
+                  ? 'bg-green-600 text-white'
+                  : draftQty > 0
+                    ? 'bg-navy text-white hover:bg-navy/90'
+                    : 'bg-gold text-navy hover:bg-gold-dark'
+              }`}
+            >
+              {justAdded ? 'تمت الإضافة ✓' : draftQty > 0 ? `أضف قطعة أخرى (${draftQty})` : 'أضف للطلب'}
+            </button>
+          ) : (
+            /* Normal add-to-cart button */
+            <button
+              onClick={handleAddToCart}
+              className={`w-full text-xs font-black py-2.5 px-3 rounded-lg transition-all duration-200 active:scale-[0.98] ${
+                justAdded
+                  ? 'bg-green-600 text-white'
+                  : inCart
+                    ? 'bg-navy text-white hover:bg-navy-light'
+                    : 'bg-gold text-navy hover:bg-gold-dark'
+              }`}
+            >
+              {justAdded ? 'تمت الإضافة' : inCart ? 'أضف قطعة أخرى' : 'أضف للسلة'}
+            </button>
+          )}
         </div>
       </div>
     </article>
