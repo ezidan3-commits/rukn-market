@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { escapeHtml } from './escape-html'
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -76,12 +77,12 @@ export async function sendAdminNewOrderNotification(data: NewOrderNotifData) {
         <div style="color:#0c4a6e;font-size:20px;font-weight:bold;font-family:monospace;">${data.orderNumber}</div>
       </div>
       <table width="100%" style="border-collapse:collapse;margin-bottom:8px;font-size:14px;">
-        <tr><td style="padding:6px 0;color:#64748b;width:120px;">العميل</td><td style="padding:6px 0;color:#1e293b;font-weight:600;">${data.customerName}</td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;">الهاتف</td><td style="padding:6px 0;color:#1e293b;">${data.customerPhone}</td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;">المدينة</td><td style="padding:6px 0;color:#1e293b;">${data.city}</td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;">العنوان</td><td style="padding:6px 0;color:#1e293b;">${data.address}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b;width:120px;">العميل</td><td style="padding:6px 0;color:#1e293b;font-weight:600;">${escapeHtml(data.customerName)}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b;">الهاتف</td><td style="padding:6px 0;color:#1e293b;">${escapeHtml(data.customerPhone)}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b;">المدينة</td><td style="padding:6px 0;color:#1e293b;">${escapeHtml(data.city)}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b;">العنوان</td><td style="padding:6px 0;color:#1e293b;">${escapeHtml(data.address)}</td></tr>
         <tr><td style="padding:6px 0;color:#64748b;">الدفع</td><td style="padding:6px 0;color:#1e293b;">${PAYMENT_LABEL[data.paymentMethod] ?? data.paymentMethod}</td></tr>
-        ${data.notes ? `<tr><td style="padding:6px 0;color:#64748b;">ملاحظات</td><td style="padding:6px 0;color:#dc2626;">${data.notes}</td></tr>` : ''}
+        ${data.notes ? `<tr><td style="padding:6px 0;color:#64748b;">ملاحظات</td><td style="padding:6px 0;color:#dc2626;">${escapeHtml(data.notes)}</td></tr>` : ''}
       </table>
       <div style="margin-top:20px;">
         <div style="color:#1e293b;font-weight:bold;margin-bottom:8px;font-size:14px;">المنتجات:</div>
@@ -156,9 +157,9 @@ export async function sendAdminEditItemsNotification(data: EditItemsNotifData) {
         <div style="color:#78350f;font-size:18px;font-weight:bold;font-family:monospace;">${orderRef}</div>
       </div>
       <table width="100%" style="border-collapse:collapse;margin-bottom:8px;font-size:14px;">
-        <tr><td style="padding:6px 0;color:#64748b;width:120px;">العميل</td><td style="padding:6px 0;color:#1e293b;font-weight:600;">${data.customerName}</td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;">الهاتف</td><td style="padding:6px 0;color:#1e293b;">${data.customerPhone}</td></tr>
-        <tr><td style="padding:6px 0;color:#64748b;">المدينة</td><td style="padding:6px 0;color:#1e293b;">${data.city}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b;width:120px;">العميل</td><td style="padding:6px 0;color:#1e293b;font-weight:600;">${escapeHtml(data.customerName)}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b;">الهاتف</td><td style="padding:6px 0;color:#1e293b;">${escapeHtml(data.customerPhone)}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b;">المدينة</td><td style="padding:6px 0;color:#1e293b;">${escapeHtml(data.city)}</td></tr>
       </table>
       <div style="margin-top:20px;">
         <div style="color:#1e293b;font-weight:bold;margin-bottom:8px;font-size:14px;">المنتجات الجديدة:</div>
@@ -226,14 +227,14 @@ export async function sendAdminUpdateInfoNotification(data: UpdateInfoNotifData)
         <div style="color:#1e3a8a;font-size:18px;font-weight:bold;font-family:monospace;">${orderRef}</div>
       </div>
       <table width="100%" style="border-collapse:collapse;font-size:14px;">
-        <tr><td style="padding:8px 0;color:#64748b;width:120px;">العميل</td><td style="padding:8px 0;color:#1e293b;font-weight:600;">${data.customerName}</td></tr>
-        <tr><td style="padding:8px 0;color:#64748b;">الهاتف</td><td style="padding:8px 0;color:#1e293b;">${data.customerPhone}</td></tr>
-        <tr><td style="padding:8px 0;color:#64748b;">المدينة</td><td style="padding:8px 0;color:#1e293b;">${data.city}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;width:120px;">العميل</td><td style="padding:8px 0;color:#1e293b;font-weight:600;">${escapeHtml(data.customerName)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">الهاتف</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(data.customerPhone)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">المدينة</td><td style="padding:8px 0;color:#1e293b;">${escapeHtml(data.city)}</td></tr>
         <tr style="background:#f0fdf4;">
           <td style="padding:8px 12px;color:#15803d;font-weight:600;">العنوان الجديد</td>
-          <td style="padding:8px 12px;color:#14532d;font-weight:600;">${data.newAddress}</td>
+          <td style="padding:8px 12px;color:#14532d;font-weight:600;">${escapeHtml(data.newAddress)}</td>
         </tr>
-        ${data.newNotes ? `<tr style="background:#fef9c3;"><td style="padding:8px 12px;color:#854d0e;font-weight:600;">الملاحظات</td><td style="padding:8px 12px;color:#713f12;">${data.newNotes}</td></tr>` : ''}
+        ${data.newNotes ? `<tr style="background:#fef9c3;"><td style="padding:8px 12px;color:#854d0e;font-weight:600;">الملاحظات</td><td style="padding:8px 12px;color:#713f12;">${escapeHtml(data.newNotes)}</td></tr>` : ''}
       </table>
     </div>
   </div>

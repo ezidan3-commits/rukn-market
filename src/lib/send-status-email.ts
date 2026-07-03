@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { escapeHtml } from './escape-html'
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -45,7 +46,7 @@ function buildHtml(data: StatusEmailData, cfg: typeof STATUS_CONFIG[string]): st
     </div>
 
     <div style="padding:24px 32px;">
-      <p style="color:#071f3d;font-size:16px;margin:0 0 8px;">مرحباً <strong>${data.customerName}</strong>،</p>
+      <p style="color:#071f3d;font-size:16px;margin:0 0 8px;">مرحباً <strong>${escapeHtml(data.customerName)}</strong>،</p>
       <p style="color:#555;font-size:14px;line-height:1.8;margin:0 0 20px;">${cfg.detail}</p>
 
       <div style="background:#f5f0e8;border-radius:10px;padding:14px 20px;text-align:center;">

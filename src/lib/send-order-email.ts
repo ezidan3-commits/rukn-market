@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { escapeHtml } from './escape-html'
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -52,7 +53,7 @@ function buildHtml(data: OrderEmailData): string {
     </div>
 
     <div style="padding:28px 32px;">
-      <p style="color:#071f3d;font-size:16px;margin:0 0 8px;">مرحباً <strong>${data.customerName}</strong>،</p>
+      <p style="color:#071f3d;font-size:16px;margin:0 0 8px;">مرحباً <strong>${escapeHtml(data.customerName)}</strong>،</p>
       <p style="color:#555;font-size:14px;line-height:1.7;margin:0 0 24px;">
         شكراً لك على طلبك من الركن الخليجي! تم استلام طلبك بنجاح وسيتم التواصل معك قريباً لتأكيد التفاصيل وترتيب التوصيل.
       </p>
@@ -80,10 +81,10 @@ function buildHtml(data: OrderEmailData): string {
       </div>
 
       <div style="background:#f9f6f0;border-radius:10px;padding:16px 20px;font-size:13px;color:#444;line-height:1.9;">
-        <div><strong style="color:#071f3d;">المدينة:</strong> ${data.city}</div>
-        <div><strong style="color:#071f3d;">العنوان:</strong> ${data.address}</div>
+        <div><strong style="color:#071f3d;">المدينة:</strong> ${escapeHtml(data.city)}</div>
+        <div><strong style="color:#071f3d;">العنوان:</strong> ${escapeHtml(data.address)}</div>
         <div><strong style="color:#071f3d;">الدفع:</strong> ${PAYMENT_LABEL[data.paymentMethod] ?? data.paymentMethod}</div>
-        ${data.notes ? `<div><strong style="color:#071f3d;">ملاحظات:</strong> ${data.notes}</div>` : ''}
+        ${data.notes ? `<div><strong style="color:#071f3d;">ملاحظات:</strong> ${escapeHtml(data.notes)}</div>` : ''}
       </div>
 
       <p style="color:#888;font-size:12px;margin:24px 0 0;text-align:center;line-height:1.7;">
