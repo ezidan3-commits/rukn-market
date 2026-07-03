@@ -75,7 +75,11 @@ service cloud.firestore {
     }
 
     match /analytics/{docId} {
-      allow read: if isStaff();
+      // Public aggregate view/cart-add counters, shown on the public /insights
+      // page — not sensitive, so any signed-in session (including anonymous
+      // public visitors) may read them. Writes only ever happen via the
+      // Admin SDK from /api/analytics.
+      allow read: if signedIn();
       allow write: if false;
     }
 
