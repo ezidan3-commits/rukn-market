@@ -8,12 +8,13 @@ const NOTIFY_STATUSES = ['preparing', 'readyToShip', 'shipped', 'delivered', 'ca
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    // Verify staff Firebase token
+    // Staff (Flutter app) authenticate anonymously — this endpoint is staff-only,
+    // so anonymous is required and a real customer account must be rejected.
     const token = request.headers.get('Authorization')?.replace('Bearer ', '')
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const decoded = await getAdminAuth().verifyIdToken(token)
-    if (decoded.firebase.sign_in_provider === 'anonymous') {
+    if (decoded.firebase.sign_in_provider !== 'anonymous') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
