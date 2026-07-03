@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { collection, getDocs, query, where } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
 import { CheckoutForm, PaymentMethod, PAYMENT_OPTIONS } from '@/lib/types'
@@ -30,6 +32,31 @@ export default function CheckoutPage() {
     if (authLoading) return
     if (!user || user.isAnonymous) router.replace('/auth?next=/checkout')
   }, [user, authLoading, router])
+
+  // Prefill contact fields from the customer's most recent order — still fully editable
+  useEffect(() => {
+    if (!user || user.isAnonymous) return
+    const loadLastOrder = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'orders'), where('customerUid', '==', user.uid)))
+        if (snap.empty) return
+        const orders = snap.docs.map(d => d.data() as {
+          customerName?: string; customerPhone?: string; city?: string; address?: string
+          createdAt?: { seconds: number }
+        })
+        orders.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
+        const last = orders[0]
+        setForm(f => ({
+          ...f,
+          customerName: f.customerName || last.customerName || '',
+          customerPhone: f.customerPhone || last.customerPhone || '',
+          city: f.city || last.city || '',
+          address: f.address || last.address || '',
+        }))
+      } catch (err) { console.error(err) }
+    }
+    loadLastOrder()
+  }, [user])
 
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
