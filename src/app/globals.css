@@ -6,13 +6,13 @@
 * { font-family: 'Cairo', sans-serif; }
 
 body {
-  background-color: #F8F6F0;
-  color: #071f3d;
+  background-color: #F5EEE2;
+  color: #1B1712;
   direction: rtl;
 }
 
 .gold-border {
-  border: 1px solid rgba(201, 168, 76, 0.4);
+  border: 1px solid rgba(217, 123, 46, 0.35);
 }
 
 .btn-primary {

@@ -93,12 +93,12 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
                 : 'متاح'}
           </span>
 
-          {/* Discount badge */}
+          {/* Discount badge — ticket-cut shape */}
           {onSale && (
-            <span className={`absolute left-2 bg-red-600 text-white text-[11px] font-black px-2 py-1 rounded-md shadow-sm ${
+            <span className={`absolute left-2 bg-navy text-gold text-[11px] font-black pr-2.5 pl-2 py-1 shadow-sm ${
               !editOrderMode || draftQty > 0 ? 'top-11' : 'top-2'
-            }`}>
-              خصم {product.discountPercent}%
+            }`} style={{ borderRadius: '6px 2px 2px 6px' }}>
+              🔥 خصم {product.discountPercent}%
             </span>
           )}
 

@@ -6,16 +6,16 @@ const config: Config = {
     extend: {
       colors: {
         navy: {
-          DEFAULT: '#071f3d',
-          light: '#0d2d57',
-          dark: '#040f1e',
+          DEFAULT: '#1B1712',
+          light: '#2A241C',
+          dark: '#100D09',
         },
         gold: {
-          DEFAULT: '#C9A84C',
-          light: '#e2c97e',
-          dark: '#9e7a28',
+          DEFAULT: '#D97B2E',
+          light: '#F0A462',
+          dark: '#A85D1E',
         },
-        cream: '#F8F6F0',
+        cream: '#F5EEE2',
       },
       fontFamily: {
         arabic: ['Cairo', 'sans-serif'],

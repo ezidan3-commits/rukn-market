@@ -7,33 +7,42 @@ import ProductCard from '@/components/ProductCard'
 import ScrollRevealGrid from '@/components/ScrollRevealGrid'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
-import { Product, ProductCategory, productImageSrc } from '@/lib/types'
+import { Product, ProductCategory, productImageSrc, effectivePrice, hasActiveDiscount } from '@/lib/types'
 import { DRAFT_KEY, type DraftItem, type EditOrderDraft } from '@/lib/edit-order'
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
 
 type SortOption = 'default' | 'price_asc' | 'price_desc'
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  'الكل':           '🛍️',
-  'عطور':           '🌸',
-  'ملابس':          '👗',
-  'أحذية':          '👠',
-  'حقائب':          '👜',
-  'مجوهرات':        '💍',
-  'إكسسوارات':      '✨',
-  'منزل':           '🏠',
-  'أدوات منزلية':   '🔧',
-  'إلكترونيات':     '📱',
-  'عناية':          '💄',
-  'عناية شخصية':    '💆',
-  'مستلزمات':       '📦',
-  'طعام':           '🍱',
-  'رياضة':          '⚽',
-  'ألعاب':          '🎮',
-  'كتب':            '📚',
-  'هدايا':          '🎁',
+const CATEGORY_ICON_PATH: Record<string, string> = {
+  'الكل':           'M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z',
+  'عطور':           'M9 2h6M10 2v3.5c0 .6-.2 1-.6 1.4L8 8.5c-.6.6-1 1.4-1 2.3V20a1 1 0 001 1h8a1 1 0 001-1V10.8c0-.9-.4-1.7-1-2.3l-1.4-1.6c-.4-.4-.6-.9-.6-1.4V2',
+  'ملابس':          'M8 4l4 2 4-2 3 3-2 2-1-1v11H8V8L7 9 5 7z',
+  'أحذية':          'M4 18v-4c2 0 3-1 4-2l3-3 6 3c2 1 3 2 3 4v2z',
+  'حقائب':          'M8 8V6a4 4 0 018 0v2h2a1 1 0 011 1v10a2 2 0 01-2 2H7a2 2 0 01-2-2V9a1 1 0 011-1z',
+  'مجوهرات':        'M7 3h10l4 5-9 12L3 8zM3 8h18M9 3l-2 5 5 12 5-12-2-5',
+  'إكسسوارات':      'M12 2l1.8 5.5H19l-4.6 3.4 1.8 5.6L12 13.1l-4.6 3.4 1.8-5.6L4 7.5h5.2z',
+  'منزل':           'M4 11l8-7 8 7v9a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1z',
+  'أدوات منزلية':   'M14 7a3 3 0 10-4.24 4.24L4 17v3h3l5.76-5.76A3 3 0 1014 7z',
+  'إلكترونيات':     'M7 3h10a1 1 0 011 1v16a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1zM10 20h4',
+  'عناية':          'M12 2c2.5 3.5 6 8 6 12a6 6 0 11-12 0c0-4 3.5-8.5 6-12z',
+  'عناية شخصية':    'M12 2c2.5 3.5 6 8 6 12a6 6 0 11-12 0c0-4 3.5-8.5 6-12z',
+  'مستلزمات':       'M4 8l8-4 8 4-8 4-8-4zM4 8v9l8 4M20 8v9l-8 4M4 8l8 4',
+  'طعام':           'M4 10a8 8 0 0116 0v1H4z M3 15h18a1 1 0 01-1 3H4a1 1 0 01-1-3z',
+  'رياضة':          'M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2c2.5 2.7 4 6.2 4 10s-1.5 7.3-4 10c-2.5-2.7-4-6.2-4-10s1.5-7.3 4-10z',
+  'ألعاب':          'M6 10h2v2H6zm10 0h2v2h-2zM7 8h2M7 12h2M4 9a3 3 0 013-3h10a3 3 0 013 3v5a3 3 0 01-3 3H7a3 3 0 01-3-3z',
+  'كتب':            'M4 5a2 2 0 012-2h5v18H6a2 2 0 01-2-2zM20 5a2 2 0 00-2-2h-5v18h5a2 2 0 002-2z',
+  'هدايا':          'M4 9h16v11a1 1 0 01-1 1H5a1 1 0 01-1-1zM2 6h20v4H2zM12 6v14M12 6C9 6 8 4.5 8 3a2 2 0 014 0 2 2 0 014 0c0 1.5-1 3-4 3z',
 }
-const getCatEmoji = (cat: string) => CATEGORY_EMOJI[cat] ?? '🏷️'
+const DEFAULT_CATEGORY_ICON = 'M4 7l8-4 8 4v10l-8 4-8-4z M4 7l8 4 8-4 M12 11v10'
+
+function CategoryIcon({ name, className }: { name: string; className?: string }) {
+  const d = CATEGORY_ICON_PATH[name] ?? DEFAULT_CATEGORY_ICON
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  )
+}
 
 function SkeletonCard() {
   return (
@@ -50,7 +59,7 @@ function SkeletonCard() {
 
 export default function HomePage() {
   const { syncWithProducts, items, count } = useCart()
-  const cartTotal = items.reduce((s, i) => s + i.product.sellEgp * i.quantity, 0)
+  const cartTotal = items.reduce((s, i) => s + effectivePrice(i.product) * i.quantity, 0)
   const moneyCart = (n: number) => n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
   const [products, setProducts] = useState<Product[]>([])
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({})
@@ -142,6 +151,11 @@ export default function HomePage() {
     [products]
   )
 
+  const activeOffersCount = useMemo(
+    () => products.filter(hasActiveDiscount).length,
+    [products]
+  )
+
   const searchDropdownResults = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return []
@@ -188,45 +202,56 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Hero Section (full-width, navy, with wave) ── */}
+      {/* ── Hero Section (dark ember atmosphere, with wave) ── */}
       <section className="-mx-4 bg-navy text-white relative overflow-hidden">
-        {/* Subtle dot pattern overlay */}
+        {/* Ember glow */}
         <div
-          className="absolute inset-0 opacity-[0.04] pointer-events-none"
+          className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: 'radial-gradient(circle, #C9A84C 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
+            background:
+              'radial-gradient(ellipse 480px 300px at 85% -10%, rgba(217,123,46,0.28), transparent 65%), ' +
+              'radial-gradient(ellipse 380px 260px at 5% 15%, rgba(240,164,98,0.14), transparent 60%)',
           }}
         />
 
-        <div className="relative px-5 pt-7 pb-2">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="relative px-5 pt-8 pb-3">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-gold text-sm font-bold mb-2 flex items-center gap-1.5">
-                <span className="inline-block w-5 h-0.5 bg-gold rounded-full" />
-                تجربة تسوق سريعة ومباشرة
+              <p className="text-gold text-xs font-bold mb-3 flex items-center gap-2 tracking-wide">
+                <span className="inline-block w-5 h-px bg-gold" />
+                تجربة ضيافة خليجية أصيلة
               </p>
-              <h1 className="text-3xl sm:text-4xl font-black leading-tight">الركن الخليجي</h1>
-              <p className="text-white/70 text-sm sm:text-base mt-2 max-w-xl">
-                اختار منتجاتك، راجع السلة، وأكد الطلب في خطوات قليلة.
+              <h1 className="text-3xl sm:text-4xl font-black leading-tight">
+                دفء الضيافة <span className="text-gold">يبدأ من هنا</span>
+              </h1>
+              <p className="text-white/60 text-sm sm:text-base mt-3 max-w-xl leading-7">
+                بخور، عطور، وأطقم قهوة مختارة بعناية — اختار منتجاتك وأكد الطلب في خطوات قليلة.
               </p>
+              {activeOffersCount > 0 && (
+                <Link
+                  href="#offers"
+                  className="inline-flex items-center gap-1.5 mt-4 text-xs font-bold text-navy bg-gold px-3.5 py-2 rounded-lg hover:bg-gold-light transition-colors"
+                >
+                  🔥 {activeOffersCount} عرض نشط الآن ←
+                </Link>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-2 min-w-full sm:min-w-[280px]">
-              <div className="rounded-xl bg-white/8 border border-white/10 p-3 text-center backdrop-blur-sm">
-                <p className="text-2xl mb-0.5">📦</p>
+              <div className="rounded-xl bg-white/[0.06] border border-white/10 p-3 text-center backdrop-blur-sm">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 mx-auto mb-1 text-gold" fill="none" stroke="currentColor" strokeWidth={1.6}><path d="M4 7l8-4 8 4v10l-8 4-8-4z" strokeLinejoin="round" /><path d="M4 7l8 4 8-4M12 11v10" strokeLinejoin="round" /></svg>
                 <p className="text-lg font-black leading-none">{products.length}</p>
-                <p className="text-[11px] text-white/60 mt-0.5">منتج</p>
+                <p className="text-[11px] text-white/50 mt-1">منتج</p>
               </div>
-              <div className="rounded-xl bg-white/8 border border-white/10 p-3 text-center backdrop-blur-sm">
-                <p className="text-2xl mb-0.5">🏷️</p>
+              <div className="rounded-xl bg-white/[0.06] border border-white/10 p-3 text-center backdrop-blur-sm">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 mx-auto mb-1 text-gold" fill="none" stroke="currentColor" strokeWidth={1.6}><rect x="4" y="4" width="7" height="7" rx="1" /><rect x="13" y="4" width="7" height="7" rx="1" /><rect x="4" y="13" width="7" height="7" rx="1" /><rect x="13" y="13" width="7" height="7" rx="1" /></svg>
                 <p className="text-lg font-black leading-none">{categories.length - 1}</p>
-                <p className="text-[11px] text-white/60 mt-0.5">قسم</p>
+                <p className="text-[11px] text-white/50 mt-1">قسم</p>
               </div>
-              <div className="rounded-xl bg-white/8 border border-white/10 p-3 text-center backdrop-blur-sm">
-                <p className="text-2xl mb-0.5">⚡</p>
-                <p className="text-lg font-black leading-none">{lowStockCount}</p>
-                <p className="text-[11px] text-white/60 mt-0.5">محدود</p>
+              <div className="rounded-xl bg-white/[0.06] border border-white/10 p-3 text-center backdrop-blur-sm">
+                <svg viewBox="0 0 24 24" className="w-5 h-5 mx-auto mb-1 text-gold" fill="none" stroke="currentColor" strokeWidth={1.6}><path d="M13 2 4 14h6l-1 8 9-12h-6z" strokeLinejoin="round" /></svg>
+                <p className="text-lg font-black leading-none">{activeOffersCount}</p>
+                <p className="text-[11px] text-white/50 mt-1">عرض نشط</p>
               </div>
             </div>
           </div>
@@ -234,7 +259,7 @@ export default function HomePage() {
 
         {/* Wave divider */}
         <svg viewBox="0 0 1440 52" preserveAspectRatio="none" className="w-full block" style={{ height: 52, marginBottom: -1 }}>
-          <path fill="#F8F6F0" d="M0,52 C240,20 480,52 720,32 C960,12 1200,48 1440,28 L1440,52 Z" />
+          <path fill="#F5EEE2" d="M0,52 C240,20 480,52 720,32 C960,12 1200,48 1440,28 L1440,52 Z" />
         </svg>
       </section>
 
@@ -321,13 +346,17 @@ export default function HomePage() {
                 <button
                   key={cat}
                   onClick={() => setCategory(cat)}
-                  className={`whitespace-nowrap text-sm font-bold py-2 px-4 rounded-xl border transition-all duration-200 flex-shrink-0 flex items-center gap-1.5 ${
+                  className={`whitespace-nowrap text-sm font-bold py-1.5 pr-1.5 pl-4 rounded-full border transition-all duration-200 flex-shrink-0 flex items-center gap-2 ${
                     category === cat
                       ? 'bg-navy text-white border-navy shadow-sm'
                       : 'bg-white text-navy border-gold/35 hover:border-gold hover:bg-gold/5'
                   }`}
                 >
-                  <span>{getCatEmoji(cat)}</span>
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    category === cat ? 'bg-gold text-navy' : 'bg-cream text-gold-dark'
+                  }`}>
+                    <CategoryIcon name={cat} className="w-3.5 h-3.5" />
+                  </span>
                   <span>{cat}</span>
                 </button>
               ))}
@@ -372,7 +401,7 @@ export default function HomePage() {
       )}
 
       {/* ── Products grid ── */}
-      <section>
+      <section id="offers">
         <div className="flex items-end justify-between gap-3 mb-3">
           <div>
             <h2 className="text-navy text-xl font-black">المنتجات</h2>
