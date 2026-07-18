@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { useCart } from '@/context/CartContext'
 import { useToast } from '@/context/ToastContext'
 import { trackProductEvent } from '@/lib/analytics'
-import { Product, productImageSrc } from '@/lib/types'
+import { Product, productImageSrc, effectivePrice, hasActiveDiscount } from '@/lib/types'
 
 function ProductFallbackIcon({ size = 'w-14 h-14' }: { size?: string }) {
   return (
@@ -31,6 +31,8 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
   const [liked, setLiked] = useState(false)
 
   const isLowStock = product.quantity > 0 && product.quantity <= 3
+  const onSale = hasActiveDiscount(product)
+  const price = effectivePrice(product)
 
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
@@ -91,6 +93,15 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
                 : 'متاح'}
           </span>
 
+          {/* Discount badge */}
+          {onSale && (
+            <span className={`absolute left-2 bg-red-600 text-white text-[11px] font-black px-2 py-1 rounded-md shadow-sm ${
+              !editOrderMode || draftQty > 0 ? 'top-11' : 'top-2'
+            }`}>
+              خصم {product.discountPercent}%
+            </span>
+          )}
+
           {/* Heart wishlist button — normal mode only */}
           {!editOrderMode && (
             <button
@@ -113,7 +124,12 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
 
           {/* Price overlay */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-navy/75 via-navy/30 to-transparent px-3 pt-6 pb-2 flex items-end justify-between">
-            <span className="text-white font-black text-base drop-shadow">{money(product.sellEgp)}</span>
+            <span className="flex items-baseline gap-1.5">
+              <span className="text-white font-black text-base drop-shadow">{money(price)}</span>
+              {onSale && (
+                <span className="text-white/60 text-[11px] line-through">{money(product.sellEgp)}</span>
+              )}
+            </span>
             {!editOrderMode && inCart && (
               <span className="text-[11px] text-white font-bold bg-gold/80 px-2 py-0.5 rounded-md">
                 × {inCart.quantity}

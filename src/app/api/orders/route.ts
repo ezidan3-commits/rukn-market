@@ -5,6 +5,15 @@ import { PaymentMethod, PAYMENT_LABEL } from '@/lib/types'
 import { sendOrderConfirmationEmail } from '@/lib/send-order-email'
 import { sendAdminNewOrderNotification } from '@/lib/send-admin-notification'
 
+function effectiveSellEgp(product: FirebaseFirestore.DocumentData): number {
+  const sellEgp = Number(product.sellEgp ?? 0)
+  const pct = Number(product.discountPercent ?? 0)
+  if (product.discountActive && pct > 0) {
+    return Math.round(sellEgp * (1 - Math.min(pct, 100) / 100))
+  }
+  return sellEgp
+}
+
 function toFlutterPaymentMethod(method: PaymentMethod): string {
   if (method === 'vodafone_cash') return 'vodafoneCash'
   return method
@@ -147,7 +156,7 @@ export async function POST(request: Request) {
           discountValue: 0,
           discountType: 'amount',
           name: product.name ?? '',
-          sellEgp: Number(product.sellEgp ?? 0),
+          sellEgp: effectiveSellEgp(product),
         }
       })
 

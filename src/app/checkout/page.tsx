@@ -6,7 +6,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
-import { CheckoutForm, PaymentMethod, PAYMENT_OPTIONS } from '@/lib/types'
+import { CheckoutForm, PaymentMethod, PAYMENT_OPTIONS, effectivePrice } from '@/lib/types'
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -121,7 +121,7 @@ export default function CheckoutPage() {
         `العنوان: ${form.address.trim()}`,
         '',
         'المنتجات:',
-        ...items.map(i => `- ${i.product.name} × ${i.quantity} = ${money(i.product.sellEgp * i.quantity)}`),
+        ...items.map(i => `- ${i.product.name} × ${i.quantity} = ${money(effectivePrice(i.product) * i.quantity)}`),
         '',
         `الإجمالي: ${money(total)}`,
         `الدفع: ${PAYMENT_OPTIONS.find(o => o.method === form.payment)?.label ?? form.payment}`,
@@ -286,7 +286,7 @@ export default function CheckoutPage() {
             {items.map(({ product, quantity }) => (
               <div key={product.id} className="flex justify-between gap-3 text-sm py-2 border-b border-gold/10 last:border-b-0">
                 <span className="text-gray-700 leading-5">{product.name} × {quantity}</span>
-                <span className="text-navy font-bold whitespace-nowrap">{money(product.sellEgp * quantity)}</span>
+                <span className="text-navy font-bold whitespace-nowrap">{money(effectivePrice(product) * quantity)}</span>
               </div>
             ))}
           </div>

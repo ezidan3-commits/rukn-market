@@ -8,7 +8,7 @@ import ProductCard from '@/components/ProductCard'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
 import { trackProductEvent } from '@/lib/analytics'
-import { Product, productImageSrc, productImageSources } from '@/lib/types'
+import { Product, productImageSrc, productImageSources, effectivePrice, hasActiveDiscount } from '@/lib/types'
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
 
 function ProductFallback({ large = false }: { large?: boolean }) {
@@ -92,7 +92,7 @@ export default function ProductDetailClient({ id }: { id: string }) {
   const shareOnWhatsApp = () => {
     if (!product) return
     const url = window.location.href
-    const text = `شوف المنتج ده\n*${product.name}*\n${money(product.sellEgp)}\n\n${url}`
+    const text = `شوف المنتج ده\n*${product.name}*\n${money(effectivePrice(product))}\n\n${url}`
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
   }
 
@@ -152,6 +152,12 @@ export default function ProductDetailClient({ id }: { id: string }) {
             }`}>
               {product.quantity === 1 ? 'آخر قطعة' : product.quantity <= 3 ? `آخر ${product.quantity} قطع` : `${product.quantity} قطعة متاحة`}
             </span>
+
+            {hasActiveDiscount(product) && (
+              <span className="absolute top-3 left-3 bg-red-600 text-white text-sm font-black px-3 py-1 rounded-md shadow-sm">
+                خصم {product.discountPercent}%
+              </span>
+            )}
           </div>
 
           {images.length > 1 && (
@@ -184,7 +190,12 @@ export default function ProductDetailClient({ id }: { id: string }) {
               <p className="text-xs text-gold font-black mb-2">{product.marketCategory}</p>
             )}
             <h1 className="text-navy font-black text-2xl leading-8 mb-3">{product.name}</h1>
-            <p className="text-gold font-black text-3xl mb-4">{money(product.sellEgp)}</p>
+            <p className="flex items-baseline gap-2 mb-4">
+              <span className="text-gold font-black text-3xl">{money(effectivePrice(product))}</span>
+              {hasActiveDiscount(product) && (
+                <span className="text-gray-400 text-lg line-through">{money(product.sellEgp)}</span>
+              )}
+            </p>
             {product.marketDescription ? (
               <p className="text-gray-600 text-sm leading-7">{product.marketDescription}</p>
             ) : (
@@ -294,7 +305,7 @@ export default function ProductDetailClient({ id }: { id: string }) {
         <div className="max-w-5xl mx-auto flex items-center gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-xs text-gray-500 truncate">{product.name}</p>
-            <p className="font-black text-gold">{money(product.sellEgp)}</p>
+            <p className="font-black text-gold">{money(effectivePrice(product))}</p>
           </div>
           {qty === 0 ? (
             <button onClick={addToCart} className="btn-primary py-3 px-5">

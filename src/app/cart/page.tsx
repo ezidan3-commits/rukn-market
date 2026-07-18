@@ -3,7 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { useCart } from '@/context/CartContext'
-import { Product, productImageSrc } from '@/lib/types'
+import { Product, productImageSrc, effectivePrice, hasActiveDiscount } from '@/lib/types'
 
 interface SwipeItemProps {
   product: Product
@@ -97,8 +97,13 @@ function SwipeableCartItem({ product, quantity, onRemove, onDecrement, onIncreme
 
         <div className="flex-1 min-w-0">
           <p className="font-black text-navy text-sm leading-tight line-clamp-2">{product.name}</p>
-          <p className="text-gold font-black text-sm mt-1">{money(product.sellEgp)}</p>
-          <p className="text-xs text-gray-400">{money(product.sellEgp * quantity)} إجمالي</p>
+          <p className="text-gold font-black text-sm mt-1 flex items-center gap-1.5">
+            {money(effectivePrice(product))}
+            {hasActiveDiscount(product) && (
+              <span className="text-gray-400 text-xs line-through font-normal">{money(product.sellEgp)}</span>
+            )}
+          </p>
+          <p className="text-xs text-gray-400">{money(effectivePrice(product) * quantity)} إجمالي</p>
         </div>
 
         <div className="flex items-center gap-2">

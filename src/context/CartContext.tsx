@@ -1,6 +1,6 @@
 'use client'
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { CartItem, Product } from '@/lib/types'
+import { CartItem, Product, effectivePrice } from '@/lib/types'
 
 interface CartContextType {
   items: CartItem[]
@@ -65,12 +65,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
         })
         .filter((i): i is CartItem => i !== null)
       const hasChange = updated.length !== prev.length ||
-        updated.some((u, i) => u.quantity !== prev[i]?.quantity || u.product.sellEgp !== prev[i]?.product.sellEgp)
+        updated.some((u, i) => u.quantity !== prev[i]?.quantity || effectivePrice(u.product) !== effectivePrice(prev[i]?.product))
       return hasChange ? updated : prev
     })
   }
 
-  const total = items.reduce((sum, i) => sum + i.product.sellEgp * i.quantity, 0)
+  const total = items.reduce((sum, i) => sum + effectivePrice(i.product) * i.quantity, 0)
   const count = items.reduce((sum, i) => sum + i.quantity, 0)
 
   return (

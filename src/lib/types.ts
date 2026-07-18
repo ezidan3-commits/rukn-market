@@ -13,6 +13,21 @@ export interface Product {
   marketCategory: string
   marketDescription: string
   categoryId?: string
+  discountActive?: boolean
+  discountPercent?: number
+}
+
+/** Final price after an active discount, rounded to the nearest pound. */
+export function effectivePrice(product: Product): number {
+  if (product.discountActive && product.discountPercent && product.discountPercent > 0) {
+    const pct = Math.min(product.discountPercent, 100)
+    return Math.round(product.sellEgp * (1 - pct / 100))
+  }
+  return product.sellEgp
+}
+
+export function hasActiveDiscount(product: Product): boolean {
+  return !!(product.discountActive && product.discountPercent && product.discountPercent > 0)
 }
 
 export interface ProductCategory {
