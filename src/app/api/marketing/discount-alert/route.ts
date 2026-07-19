@@ -1,7 +1,6 @@
-import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { getAdminDb, getAdminStorageBucket } from '@/lib/firebase-admin'
+import { getAdminDb } from '@/lib/firebase-admin'
 import { escapeHtml } from '@/lib/escape-html'
 
 export const runtime = 'nodejs'
@@ -9,8 +8,6 @@ export const runtime = 'nodejs'
 interface DiscountAlertBody {
   productId: string
   productName: string
-  imageUrl?: string
-  imageBase64?: string
   originalPriceEgp: number
   discountPercent: number
 }
@@ -19,53 +16,10 @@ function money(n: number): string {
   return Math.round(n).toLocaleString('ar-EG') + ' ج.م'
 }
 
-// Uploading from the server (Admin SDK, Node.js) instead of trusting the
-// Flutter app's own Storage upload — that upload has proven unreliable on
-// at least one platform, silently leaving imageUrl empty. The Admin SDK
-// path here doesn't depend on that at all.
-//
-// Builds the same firebasestorage.googleapis.com download-URL shape that
-// the Firebase client SDK's own getDownloadURL() produces (already proven
-// reliable everywhere else in this app), instead of a GCS signed URL —
-// avoids any V4-signing/date-parsing edge cases entirely.
-async function uploadImageAndGetUrl(productId: string, imageBase64: string): Promise<string | null> {
-  try {
-    const bucket = getAdminStorageBucket()
-    const filePath = `products/${productId}_${Date.now()}.jpg`
-    const file = bucket.file(filePath)
-    const downloadToken = randomUUID()
-
-    await file.save(Buffer.from(imageBase64, 'base64'), {
-      resumable: false,
-      metadata: {
-        contentType: 'image/jpeg',
-        metadata: { firebaseStorageDownloadTokens: downloadToken },
-      },
-    })
-
-    const encodedPath = encodeURIComponent(filePath)
-    return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`
-  } catch (err) {
-    console.error('[discount-alert] image upload failed:', err instanceof Error ? err.message : String(err))
-    return null
-  }
-}
-
 function buildHtml(data: DiscountAlertBody, siteUrl: string): string {
   const discountedPrice = Math.round(data.originalPriceEgp * (1 - data.discountPercent / 100))
   const productUrl = `${siteUrl}/product/${data.productId}`
   const name = escapeHtml(data.productName)
-
-  const imageSrc = data.imageUrl
-
-  const imageBlock = imageSrc
-    ? `<div style="position:relative;line-height:0;">
-         <img src="${imageSrc}" alt="${name}" style="width:100%;display:block;max-height:380px;object-fit:cover;">
-         <div style="position:absolute;top:14px;right:14px;background:#1B1712;color:#D97B2E;font-weight:bold;font-size:15px;padding:8px 16px 8px 12px;border-radius:8px 3px 3px 8px;box-shadow:0 4px 12px rgba(0,0,0,0.25);">
-           🔥 خصم ${data.discountPercent}٪
-         </div>
-       </div>`
-    : ''
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -78,9 +32,11 @@ function buildHtml(data: DiscountAlertBody, siteUrl: string): string {
       <p style="color:#ffffff88;font-size:12px;margin:6px 0 0;">عرض خاص لفترة محدودة</p>
     </div>
 
-    ${imageBlock}
-
     <div style="padding:28px 32px;text-align:center;">
+      <div style="display:inline-block;background:#1B1712;color:#D97B2E;font-weight:bold;font-size:15px;padding:8px 20px;border-radius:20px;margin-bottom:18px;">
+        🔥 خصم ${data.discountPercent}٪
+      </div>
+
       <h2 style="color:#1B1712;font-size:20px;margin:0 0 14px;">${name}</h2>
 
       <div style="display:inline-block;background:#F5EEE2;border-radius:12px;padding:14px 26px;margin-bottom:18px;">
@@ -152,20 +108,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ sent: 0, message: 'لا يوجد عملاء بإيميل لإرسال العرض إليهم' })
   }
 
-  // Upload server-side (Admin SDK) rather than trust a URL the app might
-  // send — its own upload has been unreliable, so prefer re-uploading the
-  // bytes here whenever they're available.
-  let imageUrl = body.imageUrl
-  if (body.imageBase64) {
-    imageUrl = (await uploadImageAndGetUrl(productId, body.imageBase64)) ?? imageUrl
-  }
-
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rukn-market.vercel.app'
   const html = buildHtml(
     {
       productId,
       productName,
-      imageUrl,
       originalPriceEgp,
       discountPercent,
     },

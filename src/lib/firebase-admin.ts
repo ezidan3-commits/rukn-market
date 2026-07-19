@@ -1,7 +1,6 @@
 import { cert, getApp, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { getAuth } from 'firebase-admin/auth'
-import { getStorage } from 'firebase-admin/storage'
 
 const APP_NAME = 'gulf-market-admin'
 
@@ -23,13 +22,4 @@ export function getAdminDb() {
 
 export function getAdminAuth() {
   return getAuth(initAdminApp())
-}
-
-// The client-facing config (google-services.json etc.) shows the newer
-// "<project>.firebasestorage.app" domain, but that's the download-URL
-// domain, not the actual GCS bucket resource name — Admin SDK/GCS APIs
-// need the underlying bucket, which for this project is still the
-// original "<project>.appspot.com" name.
-export function getAdminStorageBucket() {
-  return getStorage(initAdminApp()).bucket('store-manager-8d619.appspot.com')
 }
