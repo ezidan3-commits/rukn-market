@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { getApp, getApps, initializeApp, cert } from 'firebase-admin/app'
 import { getStorage } from 'firebase-admin/storage'
 import { getFirestore } from 'firebase-admin/firestore'
+import { Storage } from '@google-cloud/storage'
 
 export const runtime = 'nodejs'
 
@@ -87,10 +88,23 @@ export async function GET(request: Request) {
     sampleError = err instanceof Error ? err.message : String(err)
   }
 
+  let allBuckets: string[] | null = null
+  let listError: string | null = null
+  try {
+    const parsed = JSON.parse(Buffer.from((b64 ?? '').trim(), 'base64').toString('utf8'))
+    const rawStorage = new Storage({ projectId: parsed.project_id, credentials: parsed })
+    const [buckets] = await rawStorage.getBuckets()
+    allBuckets = buckets.map(b => b.name)
+  } catch (err) {
+    listError = err instanceof Error ? err.message : String(err)
+  }
+
   const results = {
     serviceAccount: serviceAccountInfo,
     sampleImageUrl,
     sampleError,
+    allBuckets,
+    listError,
     appspot: await tryBucket(app, 'store-manager-8d619.appspot.com'),
     firebasestorageapp: await tryBucket(app, 'store-manager-8d619.firebasestorage.app'),
   }
