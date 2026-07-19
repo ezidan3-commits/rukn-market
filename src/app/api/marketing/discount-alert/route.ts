@@ -23,12 +23,10 @@ function buildHtml(data: DiscountAlertBody, siteUrl: string): string {
   const productUrl = `${siteUrl}/product/${data.productId}`
   const name = escapeHtml(data.productName)
 
-  // Prefer the raw bytes sent straight from the app (always available
-  // immediately) over the Storage URL, which can still be empty at trigger
-  // time if the upload is mid-flight or fell back to the imageBase64 field.
-  const imageSrc = data.imageBase64
-    ? `data:image/jpeg;base64,${data.imageBase64}`
-    : data.imageUrl
+  // Prefer the real HTTPS Storage URL — Gmail and most mail clients refuse
+  // to render data: URI images at all (shows as a broken icon), so base64
+  // is only used as a last-resort fallback if no URL was available.
+  const imageSrc = data.imageUrl || (data.imageBase64 ? `data:image/jpeg;base64,${data.imageBase64}` : undefined)
 
   const imageBlock = imageSrc
     ? `<div style="position:relative;line-height:0;">
