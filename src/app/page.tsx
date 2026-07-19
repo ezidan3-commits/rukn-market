@@ -67,6 +67,7 @@ export default function HomePage() {
   const [category, setCategory] = useState<string>('الكل')
   const [search, setSearch] = useState<string>('')
   const [sort, setSort] = useState<SortOption>('default')
+  const [offersOnly, setOffersOnly] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
@@ -139,12 +140,13 @@ export default function HomePage() {
         return cat === category
       })
       .filter(p => !q || p.name.toLowerCase().includes(q))
+      .filter(p => !offersOnly || hasActiveDiscount(p))
       .sort((a, b) => {
-        if (sort === 'price_asc') return a.sellEgp - b.sellEgp
-        if (sort === 'price_desc') return b.sellEgp - a.sellEgp
+        if (sort === 'price_asc') return effectivePrice(a) - effectivePrice(b)
+        if (sort === 'price_desc') return effectivePrice(b) - effectivePrice(a)
         return a.name.localeCompare(b.name, 'ar')
       })
-  }, [products, category, search, sort, categoryMap])
+  }, [products, category, search, sort, categoryMap, offersOnly])
 
   const lowStockCount = useMemo(
     () => products.filter(p => p.quantity > 0 && p.quantity <= 3).length,
@@ -228,12 +230,16 @@ export default function HomePage() {
                 بخور، عطور، وأطقم قهوة مختارة بعناية — اختار منتجاتك وأكد الطلب في خطوات قليلة.
               </p>
               {activeOffersCount > 0 && (
-                <Link
-                  href="#offers"
+                <button
+                  onClick={() => {
+                    setOffersOnly(true)
+                    setCategory('الكل')
+                    document.getElementById('offers')?.scrollIntoView({ behavior: 'smooth' })
+                  }}
                   className="inline-flex items-center gap-1.5 mt-4 text-xs font-bold text-navy bg-gold px-3.5 py-2 rounded-lg hover:bg-gold-light transition-colors"
                 >
                   🔥 {activeOffersCount} عرض نشط الآن ←
-                </Link>
+                </button>
               )}
             </div>
 
@@ -404,13 +410,21 @@ export default function HomePage() {
       <section id="offers">
         <div className="flex items-end justify-between gap-3 mb-3">
           <div>
-            <h2 className="text-navy text-xl font-black">المنتجات</h2>
+            <h2 className="text-navy text-xl font-black">{offersOnly ? 'العروض النشطة' : 'المنتجات'}</h2>
             {!loading && (
               <p className="text-xs text-gray-500 mt-1">
                 {filtered.length} نتيجة متاحة{category !== 'الكل' ? ` في ${category}` : ''}
               </p>
             )}
           </div>
+          {offersOnly && (
+            <button
+              onClick={() => setOffersOnly(false)}
+              className="text-xs font-bold text-gold hover:text-gold-dark flex-shrink-0"
+            >
+              ✕ عرض كل المنتجات
+            </button>
+          )}
         </div>
 
         {loading ? (

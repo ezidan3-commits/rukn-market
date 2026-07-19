@@ -13,7 +13,7 @@ export default function Header() {
       <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 min-w-0">
           <Image src="/logo.png" alt="الركن الخليجي" width={44} height={44} className="rounded-full object-contain flex-shrink-0" />
-          <span className="text-white font-black text-lg truncate hidden sm:block">الركن الخليجي</span>
+          <span className="text-white font-black text-base sm:text-lg truncate">الركن الخليجي</span>
         </Link>
 
         <nav className="flex items-center gap-3">
