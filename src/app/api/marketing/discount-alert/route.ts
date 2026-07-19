@@ -9,6 +9,7 @@ interface DiscountAlertBody {
   productId: string
   productName: string
   imageUrl?: string
+  imageBase64?: string
   originalPriceEgp: number
   discountPercent: number
 }
@@ -22,9 +23,16 @@ function buildHtml(data: DiscountAlertBody, siteUrl: string): string {
   const productUrl = `${siteUrl}/product/${data.productId}`
   const name = escapeHtml(data.productName)
 
-  const imageBlock = data.imageUrl
+  // Prefer the raw bytes sent straight from the app (always available
+  // immediately) over the Storage URL, which can still be empty at trigger
+  // time if the upload is mid-flight or fell back to the imageBase64 field.
+  const imageSrc = data.imageBase64
+    ? `data:image/jpeg;base64,${data.imageBase64}`
+    : data.imageUrl
+
+  const imageBlock = imageSrc
     ? `<div style="position:relative;line-height:0;">
-         <img src="${data.imageUrl}" alt="${name}" style="width:100%;display:block;max-height:380px;object-fit:cover;">
+         <img src="${imageSrc}" alt="${name}" style="width:100%;display:block;max-height:380px;object-fit:cover;">
          <div style="position:absolute;top:14px;right:14px;background:#1B1712;color:#D97B2E;font-weight:bold;font-size:15px;padding:8px 16px 8px 12px;border-radius:8px 3px 3px 8px;box-shadow:0 4px 12px rgba(0,0,0,0.25);">
            🔥 خصم ${data.discountPercent}٪
          </div>
@@ -119,7 +127,14 @@ export async function POST(request: Request) {
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rukn-market.vercel.app'
   const html = buildHtml(
-    { productId, productName, imageUrl: body.imageUrl, originalPriceEgp, discountPercent },
+    {
+      productId,
+      productName,
+      imageUrl: body.imageUrl,
+      imageBase64: body.imageBase64,
+      originalPriceEgp,
+      discountPercent,
+    },
     siteUrl
   )
   const transporter = nodemailer.createTransport({
