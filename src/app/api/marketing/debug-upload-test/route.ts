@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import { getApp, getApps, initializeApp, cert } from 'firebase-admin/app'
 import { getStorage } from 'firebase-admin/storage'
+import { getFirestore } from 'firebase-admin/firestore'
 
 export const runtime = 'nodejs'
 
@@ -74,8 +75,22 @@ export async function GET(request: Request) {
   }
 
   const app = initDebugApp()
+
+  let sampleImageUrl: string | null = null
+  let sampleError: string | null = null
+  try {
+    const db = getFirestore(app)
+    const snap = await db.collection('products').where('imageUrl', '!=', '').limit(5).get()
+    const found = snap.docs.map(d => d.data().imageUrl as string).find(u => !!u)
+    sampleImageUrl = found ?? null
+  } catch (err) {
+    sampleError = err instanceof Error ? err.message : String(err)
+  }
+
   const results = {
     serviceAccount: serviceAccountInfo,
+    sampleImageUrl,
+    sampleError,
     appspot: await tryBucket(app, 'store-manager-8d619.appspot.com'),
     firebasestorageapp: await tryBucket(app, 'store-manager-8d619.firebasestorage.app'),
   }
