@@ -13,37 +13,6 @@ import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
 
 type SortOption = 'default' | 'price_asc' | 'price_desc'
 
-const CATEGORY_ICON_PATH: Record<string, string> = {
-  'الكل':           'M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z',
-  'عطور':           'M9 2h6M10 2v3.5c0 .6-.2 1-.6 1.4L8 8.5c-.6.6-1 1.4-1 2.3V20a1 1 0 001 1h8a1 1 0 001-1V10.8c0-.9-.4-1.7-1-2.3l-1.4-1.6c-.4-.4-.6-.9-.6-1.4V2',
-  'ملابس':          'M8 4l4 2 4-2 3 3-2 2-1-1v11H8V8L7 9 5 7z',
-  'أحذية':          'M4 18v-4c2 0 3-1 4-2l3-3 6 3c2 1 3 2 3 4v2z',
-  'حقائب':          'M8 8V6a4 4 0 018 0v2h2a1 1 0 011 1v10a2 2 0 01-2 2H7a2 2 0 01-2-2V9a1 1 0 011-1z',
-  'مجوهرات':        'M7 3h10l4 5-9 12L3 8zM3 8h18M9 3l-2 5 5 12 5-12-2-5',
-  'إكسسوارات':      'M12 2l1.8 5.5H19l-4.6 3.4 1.8 5.6L12 13.1l-4.6 3.4 1.8-5.6L4 7.5h5.2z',
-  'منزل':           'M4 11l8-7 8 7v9a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1z',
-  'أدوات منزلية':   'M14 7a3 3 0 10-4.24 4.24L4 17v3h3l5.76-5.76A3 3 0 1014 7z',
-  'إلكترونيات':     'M7 3h10a1 1 0 011 1v16a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1zM10 20h4',
-  'عناية':          'M12 2c2.5 3.5 6 8 6 12a6 6 0 11-12 0c0-4 3.5-8.5 6-12z',
-  'عناية شخصية':    'M12 2c2.5 3.5 6 8 6 12a6 6 0 11-12 0c0-4 3.5-8.5 6-12z',
-  'مستلزمات':       'M4 8l8-4 8 4-8 4-8-4zM4 8v9l8 4M20 8v9l-8 4M4 8l8 4',
-  'طعام':           'M4 10a8 8 0 0116 0v1H4z M3 15h18a1 1 0 01-1 3H4a1 1 0 01-1-3z',
-  'رياضة':          'M12 2a10 10 0 100 20 10 10 0 000-20zM2 12h20M12 2c2.5 2.7 4 6.2 4 10s-1.5 7.3-4 10c-2.5-2.7-4-6.2-4-10s1.5-7.3 4-10z',
-  'ألعاب':          'M6 10h2v2H6zm10 0h2v2h-2zM7 8h2M7 12h2M4 9a3 3 0 013-3h10a3 3 0 013 3v5a3 3 0 01-3 3H7a3 3 0 01-3-3z',
-  'كتب':            'M4 5a2 2 0 012-2h5v18H6a2 2 0 01-2-2zM20 5a2 2 0 00-2-2h-5v18h5a2 2 0 002-2z',
-  'هدايا':          'M4 9h16v11a1 1 0 01-1 1H5a1 1 0 01-1-1zM2 6h20v4H2zM12 6v14M12 6C9 6 8 4.5 8 3a2 2 0 014 0 2 2 0 014 0c0 1.5-1 3-4 3z',
-}
-const DEFAULT_CATEGORY_ICON = 'M4 7l8-4 8 4v10l-8 4-8-4z M4 7l8 4 8-4 M12 11v10'
-
-function CategoryIcon({ name, className }: { name: string; className?: string }) {
-  const d = CATEGORY_ICON_PATH[name] ?? DEFAULT_CATEGORY_ICON
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <path d={d} />
-    </svg>
-  )
-}
-
 function SkeletonCard() {
   return (
     <div className="card overflow-hidden animate-pulse">
@@ -69,7 +38,9 @@ export default function HomePage() {
   const [sort, setSort] = useState<SortOption>('default')
   const [offersOnly, setOffersOnly] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+  const [showCategoryMenu, setShowCategoryMenu] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const categoryMenuRef = useRef<HTMLDivElement>(null)
 
   const { items: recentItems } = useRecentlyViewed()
 
@@ -131,6 +102,16 @@ export default function HomePage() {
     return ['الكل', ...Array.from(new Set(names.filter(Boolean)))]
   }, [products, categoryMap])
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { 'الكل': products.length }
+    for (const p of products) {
+      const cat = (p.categoryId && categoryMap[p.categoryId]) || p.marketCategory || ''
+      if (!cat) continue
+      counts[cat] = (counts[cat] ?? 0) + 1
+    }
+    return counts
+  }, [products, categoryMap])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return products
@@ -174,6 +155,17 @@ export default function HomePage() {
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [showDropdown])
+
+  useEffect(() => {
+    if (!showCategoryMenu) return
+    function handle(e: MouseEvent) {
+      if (categoryMenuRef.current && !categoryMenuRef.current.contains(e.target as Node)) {
+        setShowCategoryMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [showCategoryMenu])
 
   const addedCount = editDraft?.draftItems.reduce((s, i) => s + i.quantity, 0) ?? 0
 
@@ -347,25 +339,45 @@ export default function HomePage() {
           </div>
 
           {categories.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setCategory(cat)}
-                  className={`whitespace-nowrap text-sm font-bold py-1.5 pr-1.5 pl-4 rounded-full border transition-all duration-200 flex-shrink-0 flex items-center gap-2 ${
-                    category === cat
-                      ? 'bg-navy text-white border-navy shadow-sm'
-                      : 'bg-white text-navy border-gold/35 hover:border-gold hover:bg-gold/5'
-                  }`}
+            <div className="relative" ref={categoryMenuRef}>
+              <button
+                onClick={() => setShowCategoryMenu(v => !v)}
+                className="flex items-center justify-between gap-3 bg-white border border-gold/25 rounded-xl px-4 py-3 max-w-[260px] w-full sm:w-auto hover:border-gold/50 transition-colors"
+              >
+                <span className="flex items-baseline gap-2 min-w-0">
+                  <span className="text-[11px] font-bold text-gray-400 flex-shrink-0">القسم</span>
+                  <span className="text-sm font-black text-navy truncate">{category}</span>
+                </span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`w-4 h-4 text-gold-dark flex-shrink-0 transition-transform duration-200 ${showCategoryMenu ? 'rotate-180' : ''}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
                 >
-                  <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    category === cat ? 'bg-gold text-navy' : 'bg-cream text-gold-dark'
-                  }`}>
-                    <CategoryIcon name={cat} className="w-3.5 h-3.5" />
-                  </span>
-                  <span>{cat}</span>
-                </button>
-              ))}
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+
+              {showCategoryMenu && (
+                <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-gold/20 rounded-xl shadow-xl overflow-hidden z-50">
+                  {categories.map(cat => {
+                    const active = category === cat
+                    return (
+                      <button
+                        key={cat}
+                        onClick={() => { setCategory(cat); setShowCategoryMenu(false) }}
+                        className={`w-full flex items-center justify-between px-4 py-3 text-sm border-b border-gray-100 last:border-b-0 transition-colors ${
+                          active ? 'bg-cream text-navy font-black' : 'text-gray-600 font-bold hover:bg-cream/50'
+                        }`}
+                      >
+                        <span>{cat}</span>
+                        <span className={`text-[11px] ${active ? 'text-gold-dark' : 'text-gray-400'}`}>
+                          {categoryCounts[cat] ?? 0}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
