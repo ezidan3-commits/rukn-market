@@ -10,7 +10,7 @@ interface CampaignBody {
   imageUrl?: string
 }
 
-function buildHtml(subject: string, body: string, imageUrl?: string, gmailUser?: string): string {
+function buildHtml(subject: string, body: string, imageUrl: string | undefined, siteUrl: string): string {
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -32,8 +32,7 @@ function buildHtml(subject: string, body: string, imageUrl?: string, gmailUser?:
     <div style="background:#f5f0e8;padding:14px 32px;text-align:center;">
       <p style="color:#999;font-size:11px;margin:0;line-height:1.8;">
         وصلك هذا البريد لأنك سبق وطلبت من الركن الخليجي.<br>
-        للإلغاء الاشتراك راسلنا على
-        <a href="mailto:${gmailUser ?? ''}?subject=إلغاء_الاشتراك" style="color:#071f3d;">هذا الإيميل</a>
+        <a href="${siteUrl}/unsubscribe" style="color:#071f3d;">إلغاء الاشتراك فى العروض</a>
       </p>
     </div>
 
@@ -76,7 +75,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ sent: 0, message: 'لا يوجد عملاء بإيميل لإرسال الحملة إليهم' })
   }
 
-  const html = buildHtml(body.subject, body.body, body.imageUrl, process.env.GMAIL_USER)
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rukn-market.vercel.app'
+  const html = buildHtml(body.subject, body.body, body.imageUrl, siteUrl)
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },

@@ -72,8 +72,7 @@ function buildHtml(data: DiscountAlertBody, siteUrl: string): string {
     <div style="background:#F5EEE2;padding:14px 32px;text-align:center;">
       <p style="color:#999;font-size:11px;margin:0;line-height:1.8;">
         وصلك هذا البريد لأنك سبق وطلبت من الركن الخليجي.<br>
-        للإلغاء الاشتراك راسلنا على
-        <a href="mailto:${process.env.GMAIL_USER ?? ''}?subject=إلغاء_الاشتراك" style="color:#1B1712;">هذا الإيميل</a>
+        <a href="${siteUrl}/unsubscribe" style="color:#1B1712;">إلغاء الاشتراك فى العروض</a>
       </p>
     </div>
 
