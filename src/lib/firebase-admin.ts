@@ -1,6 +1,7 @@
 import { cert, getApp, getApps, initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { getAuth } from 'firebase-admin/auth'
+import { getStorage } from 'firebase-admin/storage'
 
 const APP_NAME = 'gulf-market-admin'
 
@@ -22,4 +23,8 @@ export function getAdminDb() {
 
 export function getAdminAuth() {
   return getAuth(initAdminApp())
+}
+
+export function getAdminStorageBucket() {
+  return getStorage(initAdminApp()).bucket('store-manager-8d619.firebasestorage.app')
 }

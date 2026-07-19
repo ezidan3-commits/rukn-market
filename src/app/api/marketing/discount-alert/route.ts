@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { getAdminDb } from '@/lib/firebase-admin'
+import { getAdminDb, getAdminStorageBucket } from '@/lib/firebase-admin'
 import { escapeHtml } from '@/lib/escape-html'
 
 export const runtime = 'nodejs'
@@ -18,15 +18,33 @@ function money(n: number): string {
   return Math.round(n).toLocaleString('ar-EG') + ' ج.م'
 }
 
+// Uploading from the server (Admin SDK, Node.js) instead of trusting the
+// Flutter app's own Storage upload — that upload has proven unreliable on
+// at least one platform, silently leaving imageUrl empty. The Admin SDK
+// path here doesn't depend on that at all.
+async function uploadImageAndGetUrl(productId: string, imageBase64: string): Promise<string | null> {
+  try {
+    const bucket = getAdminStorageBucket()
+    const filePath = `products/${productId}_${Date.now()}.jpg`
+    const file = bucket.file(filePath)
+    await file.save(Buffer.from(imageBase64, 'base64'), {
+      contentType: 'image/jpeg',
+      resumable: false,
+    })
+    const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2100' })
+    return url
+  } catch (err) {
+    console.error('[discount-alert] image upload failed:', err instanceof Error ? err.message : String(err))
+    return null
+  }
+}
+
 function buildHtml(data: DiscountAlertBody, siteUrl: string): string {
   const discountedPrice = Math.round(data.originalPriceEgp * (1 - data.discountPercent / 100))
   const productUrl = `${siteUrl}/product/${data.productId}`
   const name = escapeHtml(data.productName)
 
-  // Prefer the real HTTPS Storage URL — Gmail and most mail clients refuse
-  // to render data: URI images at all (shows as a broken icon), so base64
-  // is only used as a last-resort fallback if no URL was available.
-  const imageSrc = data.imageUrl || (data.imageBase64 ? `data:image/jpeg;base64,${data.imageBase64}` : undefined)
+  const imageSrc = data.imageUrl
 
   const imageBlock = imageSrc
     ? `<div style="position:relative;line-height:0;">
@@ -122,13 +140,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ sent: 0, message: 'لا يوجد عملاء بإيميل لإرسال العرض إليهم' })
   }
 
+  // Upload server-side (Admin SDK) rather than trust a URL the app might
+  // send — its own upload has been unreliable, so prefer re-uploading the
+  // bytes here whenever they're available.
+  let imageUrl = body.imageUrl
+  if (body.imageBase64) {
+    imageUrl = (await uploadImageAndGetUrl(productId, body.imageBase64)) ?? imageUrl
+  }
+
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rukn-market.vercel.app'
   const html = buildHtml(
     {
       productId,
       productName,
-      imageUrl: body.imageUrl,
-      imageBase64: body.imageBase64,
+      imageUrl,
       originalPriceEgp,
       discountPercent,
     },
