@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { collection, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore'
+import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
 import ScrollRevealGrid from '@/components/ScrollRevealGrid'
 import { useCart } from '@/context/CartContext'
@@ -81,8 +81,7 @@ export default function HomePage() {
 
       const q = query(
         collection(db, 'products'),
-        where('visibleInMarket', '==', true),
-        limit(100)
+        where('visibleInMarket', '==', true)
       )
       unsub = onSnapshot(q, snap => {
         const list = snap.docs
