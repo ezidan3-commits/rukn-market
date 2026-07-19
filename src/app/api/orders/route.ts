@@ -14,6 +14,20 @@ function effectiveSellEgp(product: FirebaseFirestore.DocumentData): number {
   return sellEgp
 }
 
+// The Flutter app recomputes each order item's total from the *current*
+// live product.sellEgp (never the sellEgp captured here) combined with
+// discountValue/discountType — so the discount actually applied at order
+// time must be encoded as a percent here, or any later product edit (even
+// an unrelated stock change) recalculates the invoice at full price and
+// silently wipes out the discount the customer was quoted.
+function orderItemDiscount(product: FirebaseFirestore.DocumentData): { discountValue: number; discountType: string } {
+  const pct = Number(product.discountPercent ?? 0)
+  if (product.discountActive && pct > 0) {
+    return { discountValue: Math.min(pct, 100), discountType: 'percent' }
+  }
+  return { discountValue: 0, discountType: 'amount' }
+}
+
 function toFlutterPaymentMethod(method: PaymentMethod): string {
   if (method === 'vodafone_cash') return 'vodafoneCash'
   return method
@@ -153,8 +167,7 @@ export async function POST(request: Request) {
         return {
           productId: item.productId,
           quantity: item.quantity,
-          discountValue: 0,
-          discountType: 'amount',
+          ...orderItemDiscount(product),
           name: product.name ?? '',
           sellEgp: effectiveSellEgp(product),
         }
