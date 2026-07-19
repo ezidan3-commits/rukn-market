@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { getAdminDb, getAdminStorageBucket } from '@/lib/firebase-admin'
@@ -22,17 +23,28 @@ function money(n: number): string {
 // Flutter app's own Storage upload — that upload has proven unreliable on
 // at least one platform, silently leaving imageUrl empty. The Admin SDK
 // path here doesn't depend on that at all.
+//
+// Builds the same firebasestorage.googleapis.com download-URL shape that
+// the Firebase client SDK's own getDownloadURL() produces (already proven
+// reliable everywhere else in this app), instead of a GCS signed URL —
+// avoids any V4-signing/date-parsing edge cases entirely.
 async function uploadImageAndGetUrl(productId: string, imageBase64: string): Promise<string | null> {
   try {
     const bucket = getAdminStorageBucket()
     const filePath = `products/${productId}_${Date.now()}.jpg`
     const file = bucket.file(filePath)
+    const downloadToken = randomUUID()
+
     await file.save(Buffer.from(imageBase64, 'base64'), {
-      contentType: 'image/jpeg',
       resumable: false,
+      metadata: {
+        contentType: 'image/jpeg',
+        metadata: { firebaseStorageDownloadTokens: downloadToken },
+      },
     })
-    const [url] = await file.getSignedUrl({ action: 'read', expires: '01-01-2100' })
-    return url
+
+    const encodedPath = encodeURIComponent(filePath)
+    return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`
   } catch (err) {
     console.error('[discount-alert] image upload failed:', err instanceof Error ? err.message : String(err))
     return null
