@@ -47,14 +47,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
         }
       }
 
+      // Match the Flutter app's own convention: cancelling an order deletes
+      // its invoice if nothing has been paid on it yet. A partially/fully
+      // paid invoice is left alone for staff to handle manually (refund).
       const invoiceSnap = await db.collection('invoices').where('orderId', '==', params.id).limit(1).get()
       if (!invoiceSnap.empty) {
-        tx.update(invoiceSnap.docs[0].ref, {
-          paid: false,
-          paidAmountEgp: 0,
-          remainingEgp: order.totalEgp ?? 0,
-          updatedAt: FieldValue.serverTimestamp(),
-        })
+        const invoice = invoiceSnap.docs[0]
+        const paidAmountEgp = Number(invoice.data().paidAmountEgp ?? 0)
+        if (paidAmountEgp <= 0) {
+          tx.delete(invoice.ref)
+        }
       }
     })
 
