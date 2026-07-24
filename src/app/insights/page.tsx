@@ -1,28 +1,29 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { collection, getDocs, orderBy, query } from 'firebase/firestore'
-import { db, ensureAuth } from '@/lib/firebase'
 
 interface ProductStat {
   productId: string
   productName: string
   views: number
   cartAdds: number
-  lastSeenAt: { seconds: number } | null
+  lastSeenAt: string | null
 }
 
 export default function InsightsPage() {
   const [items, setItems] = useState<ProductStat[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
-    ensureAuth().then(() =>
-      getDocs(query(collection(db, 'analytics'), orderBy('views', 'desc')))
-    ).then(snap => {
-      setItems(snap.docs.map(d => d.data() as ProductStat))
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    fetch('/api/analytics', { cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error('Failed to load analytics')
+        return response.json() as Promise<{ items: ProductStat[] }>
+      })
+      .then(data => setItems(Array.isArray(data.items) ? data.items : []))
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false))
   }, [])
 
   const totals = items.reduce(
@@ -59,6 +60,11 @@ export default function InsightsPage() {
           <div className="p-8 text-center">
             <div className="w-8 h-8 border-2 border-gold border-t-transparent rounded-full animate-spin mx-auto" />
           </div>
+        ) : loadError ? (
+          <div className="p-8 text-center">
+            <p className="font-bold text-red-600 mb-1">تعذر تحميل الإحصائيات</p>
+            <p className="text-gray-500 text-sm">يرجى تحديث الصفحة والمحاولة مرة أخرى.</p>
+          </div>
         ) : items.length === 0 ? (
           <div className="p-8 text-center">
             <p className="font-bold text-navy mb-1">لا توجد بيانات بعد</p>
@@ -72,7 +78,7 @@ export default function InsightsPage() {
                   <p className="font-black text-navy">{item.productName}</p>
                   {item.lastSeenAt && (
                     <p className="text-xs text-gray-500">
-                      آخر تفاعل: {new Date(item.lastSeenAt.seconds * 1000).toLocaleString('ar-EG')}
+                      آخر تفاعل: {new Date(item.lastSeenAt).toLocaleString('ar-EG')}
                     </p>
                   )}
                 </div>

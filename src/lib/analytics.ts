@@ -25,7 +25,11 @@ function readStore(): AnalyticsStore {
 }
 
 function writeStore(store: AnalyticsStore) {
-  localStorage.setItem(KEY, JSON.stringify(store))
+  try {
+    localStorage.setItem(KEY, JSON.stringify(store))
+  } catch {
+    // Browser storage is optional; server-side analytics must still be sent.
+  }
 }
 
 export function trackProductEvent(product: Product, event: AnalyticsEvent) {
@@ -48,10 +52,21 @@ export function trackProductEvent(product: Product, event: AnalyticsEvent) {
   }
   writeStore(store)
 
+  const payload = JSON.stringify({ productId: product.id, productName: product.name, event })
+
+  if (navigator.sendBeacon) {
+    const queued = navigator.sendBeacon(
+      '/api/analytics',
+      new Blob([payload], { type: 'application/json' })
+    )
+    if (queued) return
+  }
+
   fetch('/api/analytics', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ productId: product.id, productName: product.name, event }),
+    body: payload,
+    keepalive: true,
   }).catch(() => {})
 }
 
