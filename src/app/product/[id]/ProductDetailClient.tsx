@@ -7,7 +7,6 @@ import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/
 import ProductCard from '@/components/ProductCard'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
-import { trackProductEvent } from '@/lib/analytics'
 import { Product, productImageSrc, productImageSources, effectivePrice, hasActiveDiscount } from '@/lib/types'
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
 
@@ -55,7 +54,6 @@ export default function ProductDetailClient({ id }: { id: string }) {
           setSelectedImage(current => current || productImageSources(p)[0] || '')
           if (trackedView.current !== p.id) {
             trackedView.current = p.id
-            trackProductEvent(p, 'view')
             addToRecent({ id: p.id, name: p.name, sellEgp: p.sellEgp, imageUrl: productImageSrc(p) ?? undefined, marketCategory: p.marketCategory })
           }
           if (p.marketCategory && fetchedCategory.current !== p.marketCategory) {
@@ -99,7 +97,6 @@ export default function ProductDetailClient({ id }: { id: string }) {
   const addToCart = () => {
     if (!product) return
     add(product)
-    trackProductEvent(product, 'cart_add')
   }
 
   const shareOnWhatsApp = () => {

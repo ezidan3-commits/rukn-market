@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useCart } from '@/context/CartContext'
 import { useToast } from '@/context/ToastContext'
-import { trackProductEvent } from '@/lib/analytics'
 import { Product, productImageSrc, effectivePrice, hasActiveDiscount } from '@/lib/types'
 
 function ProductFallbackIcon({ size = 'w-14 h-14' }: { size?: string }) {
@@ -39,7 +38,6 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
 
   const handleAddToCart = () => {
     add(product)
-    trackProductEvent(product, 'cart_add')
     showToast(product.name, imgSrc || undefined)
     setJustAdded(true)
     setTimeout(() => setJustAdded(false), 1200)

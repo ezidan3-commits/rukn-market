@@ -514,10 +514,6 @@ export default function HomePage() {
           <a href="https://www.facebook.com/groups/618310885443604/?ref=share&mibextid=NSMWBT" target="_blank" rel="noopener noreferrer" className="text-sm text-gray-500 hover:text-[#1877F2] font-semibold">
             فيسبوك
           </a>
-          <span className="text-gray-300">|</span>
-          <Link href="/insights" className="text-sm text-gray-500 hover:text-navy font-semibold">
-            الإحصائيات
-          </Link>
         </div>
         <p className="text-xs text-gray-400 mt-3">جميع الحقوق محفوظة © 2026</p>
       </footer>
