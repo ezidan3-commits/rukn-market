@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { collection, doc, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
@@ -40,44 +40,57 @@ export default function ProductDetailClient({ id }: { id: string }) {
   const { addItem: addToRecent } = useRecentlyViewed(id)
 
   useEffect(() => {
-    let unsub: (() => void) | undefined
-    ensureAuth().then(() => {
-      unsub = onSnapshot(doc(db, 'products', id), snap => {
-        if (snap.exists()) {
-          const p = { id: snap.id, ...snap.data() } as Product
-          if (p.visibleInMarket && p.quantity > 0) {
-            setProduct(p)
-            setSelectedImage(current => current || productImageSources(p)[0] || '')
-            if (trackedView.current !== p.id) {
-              trackedView.current = p.id
-              trackProductEvent(p, 'view')
-              addToRecent({ id: p.id, name: p.name, sellEgp: p.sellEgp, imageUrl: productImageSrc(p) ?? undefined, marketCategory: p.marketCategory })
-            }
-            if (p.marketCategory && fetchedCategory.current !== p.marketCategory) {
-              fetchedCategory.current = p.marketCategory
-              getDocs(query(
-                collection(db, 'products'),
-                where('visibleInMarket', '==', true),
-                where('marketCategory', '==', p.marketCategory),
-                limit(5)
-              )).then(result => {
-                const list = result.docs
-                  .map(d => ({ id: d.id, ...d.data() } as Product))
-                  .filter(r => r.id !== id && r.quantity > 0)
-                  .slice(0, 4)
-                setRelated(list)
-              })
-            }
-          } else {
-            setProduct(null)
+    // One-time read instead of a live onSnapshot listener — see the
+    // homepage's product query for why (Firestore free-tier quota).
+    // Stock is re-validated server-side at checkout regardless.
+    let cancelled = false
+    const load = async () => {
+      await ensureAuth()
+      const snap = await getDoc(doc(db, 'products', id))
+      if (cancelled) return
+      if (snap.exists()) {
+        const p = { id: snap.id, ...snap.data() } as Product
+        if (p.visibleInMarket && p.quantity > 0) {
+          setProduct(p)
+          setSelectedImage(current => current || productImageSources(p)[0] || '')
+          if (trackedView.current !== p.id) {
+            trackedView.current = p.id
+            trackProductEvent(p, 'view')
+            addToRecent({ id: p.id, name: p.name, sellEgp: p.sellEgp, imageUrl: productImageSrc(p) ?? undefined, marketCategory: p.marketCategory })
+          }
+          if (p.marketCategory && fetchedCategory.current !== p.marketCategory) {
+            fetchedCategory.current = p.marketCategory
+            getDocs(query(
+              collection(db, 'products'),
+              where('visibleInMarket', '==', true),
+              where('marketCategory', '==', p.marketCategory),
+              limit(5)
+            )).then(result => {
+              if (cancelled) return
+              const list = result.docs
+                .map(d => ({ id: d.id, ...d.data() } as Product))
+                .filter(r => r.id !== id && r.quantity > 0)
+                .slice(0, 4)
+              setRelated(list)
+            })
           }
         } else {
           setProduct(null)
         }
-        setLoading(false)
-      })
-    })
-    return () => unsub?.()
+      } else {
+        setProduct(null)
+      }
+      setLoading(false)
+    }
+    load()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [id])
 
   const money = (n: number) =>

@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
 import ScrollRevealGrid from '@/components/ScrollRevealGrid'
 import { useCart } from '@/context/CartContext'
@@ -69,30 +69,46 @@ export default function HomePage() {
   }
 
   useEffect(() => {
-    let unsub: (() => void) | undefined
+    // One-time reads instead of a live onSnapshot listener — a persistent
+    // listener re-bills every visitor for every product write anywhere in
+    // the store, which burns the Firestore free-tier quota fast. Stock is
+    // re-validated server-side at checkout regardless, so a brief staleness
+    // here is harmless; refetch on tab focus keeps it reasonably fresh.
+    let cancelled = false
+    const load = async () => {
+      await ensureAuth()
+      const q = query(
+        collection(db, 'products'),
+        where('visibleInMarket', '==', true)
+      )
+      const snap = await getDocs(q)
+      if (cancelled) return
+      const list = snap.docs
+        .map(d => ({ id: d.id, ...d.data() } as Product))
+        .filter(p => p.quantity > 0)
+      setProducts(list)
+      syncWithProducts(list)
+      setLoading(false)
+    }
     ensureAuth().then(async () => {
       const catSnap = await getDocs(collection(db, 'productCategories'))
+      if (cancelled) return
       const map: Record<string, string> = {}
       catSnap.docs.forEach(d => {
         const c = d.data() as ProductCategory
         map[d.id] = c.name ?? d.id
       })
       setCategoryMap(map)
-
-      const q = query(
-        collection(db, 'products'),
-        where('visibleInMarket', '==', true)
-      )
-      unsub = onSnapshot(q, snap => {
-        const list = snap.docs
-          .map(d => ({ id: d.id, ...d.data() } as Product))
-          .filter(p => p.quantity > 0)
-        setProducts(list)
-        syncWithProducts(list)
-        setLoading(false)
-      })
+      await load()
     })
-    return () => unsub?.()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

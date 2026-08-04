@@ -1,8 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
@@ -23,9 +23,10 @@ export default function CheckoutPage() {
     notes: '',
     payment: 'cash',
   })
+  const orderPlacedRef = useRef(false)
 
   useEffect(() => {
-    if (items.length === 0) router.replace('/')
+    if (items.length === 0 && !orderPlacedRef.current) router.replace('/')
   }, [items, router])
 
   useEffect(() => {
@@ -38,13 +39,17 @@ export default function CheckoutPage() {
     if (!user || user.isAnonymous) return
     const loadLastOrder = async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'orders'), where('customerUid', '==', user.uid)))
+        const snap = await getDocs(query(
+          collection(db, 'orders'),
+          where('customerUid', '==', user.uid),
+          orderBy('createdAt', 'desc'),
+          limit(1)
+        ))
         if (snap.empty) return
         const orders = snap.docs.map(d => d.data() as {
           customerName?: string; customerPhone?: string; city?: string; address?: string
           createdAt?: { seconds: number }
         })
-        orders.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
         const last = orders[0]
         setForm(f => ({
           ...f,
@@ -129,6 +134,7 @@ export default function CheckoutPage() {
       ].filter(Boolean).join('\n')
 
       sessionStorage.setItem('lastOrderId', orderNumber)
+      orderPlacedRef.current = true
       clear()
       window.open(`https://wa.me/${process.env.NEXT_PUBLIC_WA_NUMBER}?text=${encodeURIComponent(waLines)}`, '_blank')
       router.push('/order-success')
