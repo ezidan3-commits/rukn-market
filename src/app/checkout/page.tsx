@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore'
+import { collection, getDocs, limit, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
@@ -41,18 +41,27 @@ export default function CheckoutPage() {
     if (!user || user.isAnonymous) return
     const loadLastOrder = async () => {
       try {
+        // Deliberately no orderBy('createdAt') here: pairing it with the
+        // customerUid equality filter needs a composite index that isn't
+        // guaranteed to exist (this exact combination silently failed in
+        // production before — the try/catch below swallowed the error, so
+        // returning customers never got their details prefilled and no one
+        // noticed). A small bounded batch + picking the max client-side
+        // needs no composite index at all, so this can't go silently dark
+        // the same way again.
         const snap = await getDocs(query(
           collection(db, 'orders'),
           where('customerUid', '==', user.uid),
-          orderBy('createdAt', 'desc'),
-          limit(1)
+          limit(20)
         ))
         if (snap.empty) return
         const orders = snap.docs.map(d => d.data() as {
           customerName?: string; customerPhone?: string; city?: string; address?: string
           createdAt?: { seconds: number }
         })
-        const last = orders[0]
+        const last = orders.reduce((latest, o) =>
+          (o.createdAt?.seconds ?? 0) > (latest.createdAt?.seconds ?? 0) ? o : latest
+        )
         setForm(f => ({
           ...f,
           customerName: f.customerName || last.customerName || '',
