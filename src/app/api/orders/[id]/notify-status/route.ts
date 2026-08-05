@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 import { sendStatusEmail } from '@/lib/send-status-email'
+import { logServerError } from '@/lib/log-server-error'
 
 export const runtime = 'nodejs'
 
@@ -14,7 +15,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const decoded = await getAdminAuth().verifyIdToken(token)
-    if (decoded.firebase.sign_in_provider !== 'anonymous') {
+    if (decoded.staff !== true) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -52,7 +53,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('notify-status error:', err)
+    await logServerError('notify-status', err, { orderId: params.id })
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

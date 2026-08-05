@@ -4,6 +4,8 @@ import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 import { PaymentMethod, PAYMENT_LABEL } from '@/lib/types'
 import { sendOrderConfirmationEmail } from '@/lib/send-order-email'
 import { sendAdminNewOrderNotification } from '@/lib/send-admin-notification'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { logServerError } from '@/lib/log-server-error'
 
 function effectiveSellEgp(product: FirebaseFirestore.DocumentData): number {
   const sellEgp = Number(product.sellEgp ?? 0)
@@ -14,17 +16,9 @@ function effectiveSellEgp(product: FirebaseFirestore.DocumentData): number {
   return sellEgp
 }
 
-// The Flutter app recomputes each order item's total from the *current*
-// live product.sellEgp (never the sellEgp captured here) combined with
-// discountValue/discountType — so the discount actually applied at order
-// time must be encoded as a percent here, or any later product edit (even
-// an unrelated stock change) recalculates the invoice at full price and
-// silently wipes out the discount the customer was quoted.
-function orderItemDiscount(product: FirebaseFirestore.DocumentData): { discountValue: number; discountType: string } {
-  const pct = Number(product.discountPercent ?? 0)
-  if (product.discountActive && pct > 0) {
-    return { discountValue: Math.min(pct, 100), discountType: 'percent' }
-  }
+// Product discounts are applied by effectiveSellEgp. discountValue is reserved
+// for an additional per-order discount so Flutter never applies a promotion twice.
+function orderItemDiscount(): { discountValue: number; discountType: string } {
   return { discountValue: 0, discountType: 'amount' }
 }
 
@@ -77,13 +71,22 @@ function validateBody(body: Partial<OrderRequestBody>) {
   if (!payment || !PAYMENT_LABEL[payment]) return { error: 'طريقة الدفع غير صحيحة' }
   if (!Array.isArray(body.items) || body.items.length === 0) return { error: 'السلة فارغة' }
 
-  const items = body.items.map(item => ({
+  const parsedItems = body.items.map(item => ({
     productId: cleanText(item?.productId),
     quantity: Number(item?.quantity),
   }))
 
-  if (items.some(item => !item.productId || !Number.isInteger(item.quantity) || item.quantity <= 0 || item.quantity > 99)) {
+  if (parsedItems.some(item => !item.productId || !Number.isInteger(item.quantity) || item.quantity <= 0 || item.quantity > 99)) {
     return { error: 'بيانات المنتجات غير صحيحة' }
+  }
+
+  const quantities = new Map<string, number>()
+  for (const item of parsedItems) {
+    quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity)
+  }
+  const items = [...quantities.entries()].map(([productId, quantity]) => ({ productId, quantity }))
+  if (items.some(item => item.quantity > 99)) {
+    return { error: 'الحد الأقصى للمنتج الواحد 99 قطعة' }
   }
 
   return {
@@ -101,6 +104,14 @@ function validateBody(body: Partial<OrderRequestBody>) {
 
 export async function POST(request: Request) {
   try {
+    const rl = await checkRateLimit(`create_order_${getClientIp(request)}`, { limit: 8, windowSeconds: 600 })
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'طلبات كثيرة جداً من نفس الجهاز، حاول بعد قليل' },
+        { status: 429, headers: rl.retryAfterSeconds ? { 'Retry-After': String(rl.retryAfterSeconds) } : {} }
+      )
+    }
+
     const parsed = validateBody(await request.json())
     if ('error' in parsed) {
       return NextResponse.json({ error: parsed.error }, { status: 400 })
@@ -167,7 +178,7 @@ export async function POST(request: Request) {
         return {
           productId: item.productId,
           quantity: item.quantity,
-          ...orderItemDiscount(product),
+          ...orderItemDiscount(),
           name: product.name ?? '',
           sellEgp: effectiveSellEgp(product),
         }
@@ -243,7 +254,7 @@ export async function POST(request: Request) {
           { merge: true }
         )
       } catch (err) {
-        console.error('[Firestore] marketingSubscribers upsert failed:', err instanceof Error ? err.message : String(err))
+        await logServerError('Firestore/marketingSubscribers-upsert', err, { orderId: result.id })
       }
     }
 
@@ -261,7 +272,7 @@ export async function POST(request: Request) {
           paymentMethod: toFlutterPaymentMethod(data.payment),
         })
       } catch (err) {
-        console.error('[Gmail] order confirmation email failed:', err instanceof Error ? err.message : String(err))
+        await logServerError('Gmail/order-confirmation', err, { orderId: result.id, orderNumber: result.orderNumber })
       }
     }
 
@@ -278,7 +289,7 @@ export async function POST(request: Request) {
         totalEgp: result.totalEgp,
       })
     } catch (err) {
-      console.error('[Gmail] admin new-order notification failed:', err instanceof Error ? err.message : String(err))
+      await logServerError('Gmail/admin-new-order', err, { orderId: result.id, orderNumber: result.orderNumber })
     }
 
     return NextResponse.json(result)

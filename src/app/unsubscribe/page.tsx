@@ -1,25 +1,27 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import { useAuth } from '@/context/AuthContext'
 
 export default function UnsubscribePage() {
-  const [email, setEmail] = useState('')
+  const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const value = email.trim()
-    if (!value) { setError('من فضلك أدخل بريدك الإلكتروني'); return }
+    if (!user) { setError('سجل الدخول بالحساب الذي تصله العروض أولاً'); return }
 
     setError('')
     setLoading(true)
     try {
       const res = await fetch('/api/marketing/unsubscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: value }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await user.getIdToken()}`,
+        },
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error ?? 'حدث خطأ')
@@ -51,24 +53,21 @@ export default function UnsubscribePage() {
       <div className="text-center mb-6">
         <h1 className="font-black text-navy text-2xl">إلغاء الاشتراك فى العروض</h1>
         <p className="text-gray-500 text-sm mt-2 leading-7">
-          أدخل بريدك الإلكتروني اللي بتوصلك عليه العروض، وهنوقف إرسالها ليك.
+          سجل الدخول بالحساب الذي تصله العروض ثم أكد إلغاء الاشتراك.
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="card p-5 space-y-4">
-        <div>
-          <label className="text-sm font-semibold text-navy block mb-1">البريد الإلكتروني</label>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="example@email.com"
-            dir="ltr"
-            className="w-full border border-gold/40 rounded-lg px-4 py-3 text-navy text-sm focus:outline-none focus:border-gold"
-          />
-        </div>
+        <p className="text-sm text-gray-600 text-center" dir="ltr">
+          {user?.email ?? 'لم يتم تسجيل الدخول'}
+        </p>
+        {!authLoading && !user && (
+          <Link href="/auth?next=/unsubscribe" className="btn-secondary block text-center">
+            تسجيل الدخول
+          </Link>
+        )}
         {error && <p className="text-red-500 text-sm">{error}</p>}
-        <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2">
+        <button type="submit" disabled={loading || authLoading || !user} className="btn-primary w-full flex items-center justify-center gap-2">
           {loading
             ? (<><div className="w-4 h-4 border-2 border-navy border-t-transparent rounded-full animate-spin" />جارِ الإلغاء...</>)
             : 'إلغاء الاشتراك'}

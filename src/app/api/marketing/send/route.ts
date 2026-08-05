@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { getAdminDb } from '@/lib/firebase-admin'
+import { escapeHtml } from '@/lib/escape-html'
 
 export const runtime = 'nodejs'
 
@@ -11,6 +12,15 @@ interface CampaignBody {
 }
 
 function buildHtml(subject: string, body: string, imageUrl: string | undefined, siteUrl: string): string {
+  const safeSubject = escapeHtml(subject)
+  const safeBody = escapeHtml(body)
+  let safeImageUrl = ''
+  if (imageUrl) {
+    try {
+      const parsed = new URL(imageUrl)
+      if (parsed.protocol === 'https:') safeImageUrl = escapeHtml(parsed.toString())
+    } catch { /* Ignore invalid campaign image URLs. */ }
+  }
   return `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -22,11 +32,11 @@ function buildHtml(subject: string, body: string, imageUrl: string | undefined, 
       <p style="color:#ffffff88;font-size:12px;margin:6px 0 0;">عروض ومنتجات حصرية</p>
     </div>
 
-    ${imageUrl ? `<img src="${imageUrl}" alt="صورة العرض" style="width:100%;display:block;max-height:420px;object-fit:cover;">` : ''}
+    ${safeImageUrl ? `<img src="${safeImageUrl}" alt="صورة العرض" style="width:100%;display:block;max-height:420px;object-fit:cover;">` : ''}
 
     <div style="padding:28px 32px;">
-      <h2 style="color:#071f3d;font-size:20px;margin:0 0 16px;border-right:4px solid #C9A84C;padding-right:12px;">${subject}</h2>
-      <div style="color:#444;font-size:15px;line-height:2;white-space:pre-wrap;">${body}</div>
+      <h2 style="color:#071f3d;font-size:20px;margin:0 0 16px;border-right:4px solid #C9A84C;padding-right:12px;">${safeSubject}</h2>
+      <div style="color:#444;font-size:15px;line-height:2;white-space:pre-wrap;">${safeBody}</div>
     </div>
 
     <div style="background:#f5f0e8;padding:14px 32px;text-align:center;">
@@ -56,8 +66,13 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json() as CampaignBody
-  if (!body.subject?.trim() || !body.body?.trim()) {
+  const subject = body.subject?.trim() ?? ''
+  const message = body.body?.trim() ?? ''
+  if (!subject || !message) {
     return NextResponse.json({ error: 'الموضوع والرسالة مطلوبان' }, { status: 400 })
+  }
+  if (subject.length > 160 || message.length > 10_000) {
+    return NextResponse.json({ error: 'محتوى الحملة أطول من الحد المسموح' }, { status: 400 })
   }
 
   // Read from dedicated subscribers collection
@@ -76,7 +91,7 @@ export async function POST(request: Request) {
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://rukn-market.vercel.app'
-  const html = buildHtml(body.subject, body.body, body.imageUrl, siteUrl)
+  const html = buildHtml(subject, message, body.imageUrl, siteUrl)
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
@@ -91,7 +106,7 @@ export async function POST(request: Request) {
       from: `"الركن الخليجي" <${process.env.GMAIL_USER}>`,
       to: process.env.GMAIL_USER,
       bcc: batch,
-      subject: body.subject,
+      subject,
       html,
     })
     sent += batch.length

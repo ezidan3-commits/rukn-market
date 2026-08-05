@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, getDocs, limit, orderBy, query, startAfter, where, type QueryConstraint, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
 import ScrollRevealGrid from '@/components/ScrollRevealGrid'
 import { useCart } from '@/context/CartContext'
@@ -12,6 +12,7 @@ import { DRAFT_KEY, type DraftItem, type EditOrderDraft } from '@/lib/edit-order
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
 
 type SortOption = 'default' | 'price_asc' | 'price_desc'
+const PAGE_SIZE = 30
 
 function SkeletonCard() {
   return (
@@ -74,21 +75,52 @@ export default function HomePage() {
     // the store, which burns the Firestore free-tier quota fast. Stock is
     // re-validated server-side at checkout regardless, so a brief staleness
     // here is harmless; refetch on tab focus keeps it reasonably fresh.
+    //
+    // The catalog is fetched page-by-page (PAGE_SIZE at a time) instead of
+    // one giant query: the first page renders as soon as it arrives (fast
+    // first paint), then the rest streams in silently in the background.
+    // Search/category counts still need the full catalog client-side (no
+    // search backend here), so nothing is held back from the user — this
+    // only changes how quickly the *first* screenful shows up.
     let cancelled = false
+    let hasLoadedOnce = false
     const load = async () => {
       await ensureAuth()
-      const q = query(
-        collection(db, 'products'),
-        where('visibleInMarket', '==', true)
-      )
-      const snap = await getDocs(q)
-      if (cancelled) return
-      const list = snap.docs
-        .map(d => ({ id: d.id, ...d.data() } as Product))
-        .filter(p => p.quantity > 0)
-      setProducts(list)
-      syncWithProducts(list)
-      setLoading(false)
+      const streamProgressively = !hasLoadedOnce // only the very first load renders page-by-page
+      let cursor: QueryDocumentSnapshot<DocumentData> | null = null
+      let accumulated: Product[] = []
+      for (;;) {
+        if (cancelled) return
+        const constraints: QueryConstraint[] = [
+          where('visibleInMarket', '==', true),
+          orderBy('name'),
+          limit(PAGE_SIZE),
+          ...(cursor ? [startAfter(cursor)] : []),
+        ]
+        const snap = await getDocs(query(collection(db, 'products'), ...constraints))
+        if (cancelled) return
+        const pageList = snap.docs
+          .map(d => ({ id: d.id, ...d.data() } as Product))
+          .filter(p => p.quantity > 0)
+        accumulated = [...accumulated, ...pageList]
+
+        // First-ever load: render each page as it arrives for a fast first
+        // paint. Subsequent refreshes (tab refocus): swap the full list in
+        // one atomic update at the end, so the grid never visibly shrinks
+        // back down to one page while the refresh is still in flight.
+        if (streamProgressively) {
+          setProducts(accumulated)
+          syncWithProducts(accumulated)
+          if (!hasLoadedOnce) { setLoading(false); hasLoadedOnce = true }
+        }
+
+        if (snap.docs.length < PAGE_SIZE) break
+        cursor = snap.docs[snap.docs.length - 1]
+      }
+      if (!streamProgressively) {
+        setProducts(accumulated)
+        syncWithProducts(accumulated)
+      }
     }
     ensureAuth().then(async () => {
       const catSnap = await getDocs(collection(db, 'productCategories'))

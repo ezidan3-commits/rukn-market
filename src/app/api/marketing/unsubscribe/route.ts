@@ -1,11 +1,19 @@
 import { NextResponse } from 'next/server'
-import { getAdminDb } from '@/lib/firebase-admin'
+import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 
 export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
-  const body = await request.json() as { email?: string }
-  const email = body.email?.trim().toLowerCase()
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '')
+  if (!token) return NextResponse.json({ error: 'سجل الدخول أولاً' }, { status: 401 })
+
+  let email = ''
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(token)
+    email = decoded.email?.trim().toLowerCase() ?? ''
+  } catch {
+    return NextResponse.json({ error: 'جلسة غير صالحة' }, { status: 401 })
+  }
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'بريد إلكتروني غير صحيح' }, { status: 400 })

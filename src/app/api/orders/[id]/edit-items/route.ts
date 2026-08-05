@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 import { sendAdminEditItemsNotification } from '@/lib/send-admin-notification'
+import { logServerError } from '@/lib/log-server-error'
 
 export const runtime = 'nodejs'
 
@@ -16,15 +17,9 @@ function effectiveSellEgp(product: FirebaseFirestore.DocumentData): number {
   return sellEgp
 }
 
-// The Flutter app recomputes each order item's total from the *current*
-// live product.sellEgp combined with discountValue/discountType — the
-// discount actually applied here must be encoded as a percent, or any
-// later product edit recalculates the invoice at full price.
-function orderItemDiscount(product: FirebaseFirestore.DocumentData): { discountValue: number; discountType: string } {
-  const pct = Number(product.discountPercent ?? 0)
-  if (product.discountActive && pct > 0) {
-    return { discountValue: Math.min(pct, 100), discountType: 'percent' }
-  }
+// Product discounts are already applied by effectiveSellEgp. Keep these fields
+// for a future additional per-order discount only.
+function orderItemDiscount(): { discountValue: number; discountType: string } {
   return { discountValue: 0, discountType: 'amount' }
 }
 
@@ -41,13 +36,21 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
 
     const body = await request.json() as { items: NewItem[] }
-    const newItems = body.items ?? []
+    const requestedItems = body.items ?? []
 
-    if (newItems.length === 0) {
+    if (requestedItems.length === 0) {
       return NextResponse.json({ error: 'لا يمكن حذف جميع المنتجات، قم بإلغاء الطلب بدلاً من ذلك' }, { status: 400 })
     }
-    if (newItems.some(i => !i.productId || !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > 99)) {
+    if (requestedItems.some(i => !i.productId || !Number.isInteger(i.quantity) || i.quantity < 1 || i.quantity > 99)) {
       return NextResponse.json({ error: 'بيانات المنتجات غير صحيحة' }, { status: 400 })
+    }
+    const quantities = new Map<string, number>()
+    for (const item of requestedItems) {
+      quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity)
+    }
+    const newItems = [...quantities.entries()].map(([productId, quantity]) => ({ productId, quantity }))
+    if (newItems.some(item => item.quantity > 99)) {
+      return NextResponse.json({ error: 'الحد الأقصى للمنتج الواحد 99 قطعة' }, { status: 400 })
     }
 
     const db = getAdminDb()
@@ -74,10 +77,18 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
     let committedItems: Array<{ name: string; quantity: number; sellEgp: number }> = []
     let committedTotal = 0
+    const invoiceQuery = await db.collection('invoices').where('orderId', '==', params.id).limit(1).get()
+    const invoiceRef = invoiceQuery.empty ? null : invoiceQuery.docs[0].ref
 
     await db.runTransaction(async tx => {
+      const freshOrderSnap = await tx.get(orderRef)
+      if (!freshOrderSnap.exists) throw new Error('الطلب غير موجود')
+      const freshOrder = freshOrderSnap.data()!
+      if (freshOrder.customerUid !== decoded.uid) throw new Error('غير مصرح')
+      if (!EDITABLE.includes(freshOrder.status)) throw new Error('لا يمكن تعديل هذا الطلب في مرحلته الحالية')
       const productRefs = allProductIds.map(id => db.collection('products').doc(id))
       const productSnaps = await Promise.all(productRefs.map(r => tx.get(r)))
+      const invoiceSnap = invoiceRef ? await tx.get(invoiceRef) : null
       const productMap = Object.fromEntries(
         productSnaps.map((snap, i) => [allProductIds[i], snap])
       )
@@ -118,7 +129,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         return {
           productId: item.productId,
           quantity: item.quantity,
-          ...orderItemDiscount(product),
+          ...orderItemDiscount(),
           name: product.name ?? '',
           sellEgp: effectiveSellEgp(product),
         }
@@ -138,10 +149,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       })
 
       // Update invoice — preserve any payments already made
-      const invoiceSnap = await db.collection('invoices').where('orderId', '==', params.id).limit(1).get()
-      if (!invoiceSnap.empty) {
-        const paidSoFar = Number(invoiceSnap.docs[0].data().paidAmountEgp ?? 0)
-        tx.update(invoiceSnap.docs[0].ref, {
+      if (invoiceSnap?.exists) {
+        const paidSoFar = Number(invoiceSnap.data()?.paidAmountEgp ?? 0)
+        tx.update(invoiceSnap.ref, {
           amountEgp: newTotal,
           remainingEgp: Math.max(0, newTotal - paidSoFar),
           updatedAt: FieldValue.serverTimestamp(),
@@ -160,7 +170,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         newTotalEgp: committedTotal,
       })
     } catch (err) {
-      console.error('[Gmail] admin edit-items notification failed:', err instanceof Error ? err.message : String(err))
+      await logServerError('Gmail/admin-edit-items', err, { orderId: params.id })
     }
 
     return NextResponse.json({ ok: true })

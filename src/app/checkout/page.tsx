@@ -6,11 +6,13 @@ import { collection, getDocs, limit, orderBy, query, where } from 'firebase/fire
 import { db } from '@/lib/firebase'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
+import { useSyncCart } from '@/hooks/useSyncCart'
 import { CheckoutForm, PaymentMethod, PAYMENT_OPTIONS, effectivePrice } from '@/lib/types'
 
 export default function CheckoutPage() {
   const router = useRouter()
   const { items, total, clear } = useCart()
+  const { changedIds } = useSyncCart()
   const { user, loading: authLoading } = useAuth()
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Partial<CheckoutForm>>({})
@@ -288,6 +290,11 @@ export default function CheckoutPage() {
 
         <aside className="card p-4 lg:sticky lg:top-24">
           <p className="font-black text-navy mb-3">ملخص الطلب</p>
+          {changedIds.length > 0 && (
+            <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 font-semibold flex items-center gap-2">
+              <span>⚠️</span> تم تحديث أسعار بعض المنتجات لتطابق السعر الحالي.
+            </div>
+          )}
           <div className="space-y-2 max-h-72 overflow-auto pr-1">
             {items.map(({ product, quantity }) => (
               <div key={product.id} className="flex justify-between gap-3 text-sm py-2 border-b border-gold/10 last:border-b-0">

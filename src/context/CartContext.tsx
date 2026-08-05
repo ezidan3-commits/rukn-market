@@ -20,7 +20,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem('cart')
-    if (saved) setItems(JSON.parse(saved))
+    if (!saved) return
+    try {
+      const parsed: unknown = JSON.parse(saved)
+      if (Array.isArray(parsed)) {
+        const valid = parsed.filter((item): item is CartItem => {
+          if (!item || typeof item !== 'object') return false
+          const candidate = item as Partial<CartItem>
+          return typeof candidate.quantity === 'number' &&
+            candidate.quantity > 0 &&
+            !!candidate.product &&
+            typeof candidate.product.id === 'string'
+        })
+        setItems(valid)
+      }
+    } catch {
+      localStorage.removeItem('cart')
+    }
   }, [])
 
   useEffect(() => {

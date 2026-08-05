@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { FieldValue } from 'firebase-admin/firestore'
 import { getAdminDb, getAdminAuth } from '@/lib/firebase-admin'
 import { sendAdminUpdateInfoNotification } from '@/lib/send-admin-notification'
+import { logServerError } from '@/lib/log-server-error'
 
 export const runtime = 'nodejs'
 
@@ -54,7 +55,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
         newNotes: notes,
       })
     } catch (err) {
-      console.error('[Gmail] admin update-info notification failed:', err instanceof Error ? err.message : String(err))
+      await logServerError('Gmail/admin-update-info', err, { orderId: params.id })
     }
 
     return NextResponse.json({ ok: true })

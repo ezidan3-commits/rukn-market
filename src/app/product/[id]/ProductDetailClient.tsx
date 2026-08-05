@@ -6,9 +6,56 @@ import { useRouter } from 'next/navigation'
 import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
 import { useCart } from '@/context/CartContext'
+import { useAuth } from '@/context/AuthContext'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product, productImageSrc, productImageSources, effectivePrice, hasActiveDiscount } from '@/lib/types'
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
+
+function StockAlertButton({ productId }: { productId: string }) {
+  const { user } = useAuth()
+  const [state, setState] = useState<'idle' | 'saving' | 'done' | 'error'>('idle')
+
+  if (!user) {
+    return (
+      <Link href={`/auth?next=/product/${productId}`} className="btn-secondary w-full text-center block">
+        سجّل دخولك لتفعيل التنبيه
+      </Link>
+    )
+  }
+
+  if (state === 'done') {
+    return (
+      <div className="w-full text-center py-3 px-4 rounded-lg bg-green-50 border border-green-200 text-green-700 font-bold text-sm">
+        تم الاشتراك ✅ هنبعتلك إيميل لما يتوفر
+      </div>
+    )
+  }
+
+  const subscribe = async () => {
+    setState('saving')
+    try {
+      const token = await user.getIdToken()
+      const res = await fetch('/api/stock-alerts/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ productId }),
+      })
+      if (!res.ok) throw new Error()
+      setState('done')
+    } catch {
+      setState('error')
+    }
+  }
+
+  return (
+    <div>
+      <button onClick={subscribe} disabled={state === 'saving'} className="btn-primary w-full text-center disabled:opacity-60">
+        {state === 'saving' ? 'جاري الاشتراك...' : '🔔 نبّهني لما يتوفر'}
+      </button>
+      {state === 'error' && <p className="text-red-500 text-xs mt-2 text-center">حدث خطأ، حاول مرة أخرى</p>}
+    </div>
+  )
+}
 
 function ProductFallback({ large = false }: { large?: boolean }) {
   return (
@@ -49,14 +96,20 @@ export default function ProductDetailClient({ id }: { id: string }) {
       if (cancelled) return
       if (snap.exists()) {
         const p = { id: snap.id, ...snap.data() } as Product
-        if (p.visibleInMarket && p.quantity > 0) {
+        // A hidden product is treated as fully unavailable — but an
+        // out-of-stock product (still visible, quantity 0) still gets its
+        // own page, just without add-to-cart, so a "notify me" link keeps
+        // working. Previously both cases were collapsed into the same
+        // "المنتج غير متاح" screen, which also silently broke any shared
+        // link to a temporarily sold-out product.
+        if (p.visibleInMarket) {
           setProduct(p)
           setSelectedImage(current => current || productImageSources(p)[0] || '')
-          if (trackedView.current !== p.id) {
+          if (p.quantity > 0 && trackedView.current !== p.id) {
             trackedView.current = p.id
             addToRecent({ id: p.id, name: p.name, sellEgp: p.sellEgp, imageUrl: productImageSrc(p) ?? undefined, marketCategory: p.marketCategory })
           }
-          if (p.marketCategory && fetchedCategory.current !== p.marketCategory) {
+          if (p.quantity > 0 && p.marketCategory && fetchedCategory.current !== p.marketCategory) {
             fetchedCategory.current = p.marketCategory
             getDocs(query(
               collection(db, 'products'),
@@ -158,9 +211,9 @@ export default function ProductDetailClient({ id }: { id: string }) {
             </div>
 
             <span className={`absolute top-3 right-3 text-white text-sm font-bold px-3 py-1 rounded-md shadow-sm ${
-              product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
+              product.quantity <= 0 ? 'bg-gray-500' : product.quantity <= 3 ? 'bg-amber-500' : 'bg-green-600'
             }`}>
-              {product.quantity === 1 ? 'آخر قطعة' : product.quantity <= 3 ? `آخر ${product.quantity} قطع` : `${product.quantity} قطعة متاحة`}
+              {product.quantity <= 0 ? 'نفدت الكمية' : product.quantity === 1 ? 'آخر قطعة' : product.quantity <= 3 ? `آخر ${product.quantity} قطع` : `${product.quantity} قطعة متاحة`}
             </span>
 
             {hasActiveDiscount(product) && (
@@ -229,7 +282,9 @@ export default function ProductDetailClient({ id }: { id: string }) {
               </div>
             </div>
 
-            {qty === 0 ? (
+            {product.quantity <= 0 ? (
+              <StockAlertButton productId={product.id} />
+            ) : qty === 0 ? (
               <button onClick={addToCart} className="btn-primary w-full text-center">
                 أضف للسلة
               </button>
@@ -317,7 +372,9 @@ export default function ProductDetailClient({ id }: { id: string }) {
             <p className="text-xs text-gray-500 truncate">{product.name}</p>
             <p className="font-black text-gold">{money(effectivePrice(product))}</p>
           </div>
-          {qty === 0 ? (
+          {product.quantity <= 0 ? (
+            <span className="py-3 px-5 rounded-lg bg-gray-100 text-gray-400 font-bold text-sm">نفدت الكمية</span>
+          ) : qty === 0 ? (
             <button onClick={addToCart} className="btn-primary py-3 px-5">
               أضف للسلة
             </button>

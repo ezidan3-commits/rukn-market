@@ -30,8 +30,17 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.json({ error: 'لا يمكن إلغاء هذا الطلب في مرحلته الحالية' }, { status: 400 })
     }
 
+    const invoiceQuery = await db.collection('invoices').where('orderId', '==', params.id).limit(1).get()
+    const invoiceRef = invoiceQuery.empty ? null : invoiceQuery.docs[0].ref
+
     await db.runTransaction(async tx => {
-      const items = (order.items ?? []) as Array<{ productId: string; quantity: number }>
+      const freshOrderSnap = await tx.get(orderRef)
+      if (!freshOrderSnap.exists) throw new Error('الطلب غير موجود')
+      const freshOrder = freshOrderSnap.data()!
+      if (freshOrder.customerUid !== decoded.uid) throw new Error('غير مصرح')
+      if (!CANCELLABLE.includes(freshOrder.status)) throw new Error('لا يمكن إلغاء هذا الطلب في مرحلته الحالية')
+      const invoiceSnap = invoiceRef ? await tx.get(invoiceRef) : null
+      const items = (freshOrder.items ?? []) as Array<{ productId: string; quantity: number }>
 
       tx.update(orderRef, {
         status: 'cancelled',
@@ -50,12 +59,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
       // Match the Flutter app's own convention: cancelling an order deletes
       // its invoice if nothing has been paid on it yet. A partially/fully
       // paid invoice is left alone for staff to handle manually (refund).
-      const invoiceSnap = await db.collection('invoices').where('orderId', '==', params.id).limit(1).get()
-      if (!invoiceSnap.empty) {
-        const invoice = invoiceSnap.docs[0]
-        const paidAmountEgp = Number(invoice.data().paidAmountEgp ?? 0)
+      if (invoiceSnap?.exists) {
+        const paidAmountEgp = Number(invoiceSnap.data()?.paidAmountEgp ?? 0)
         if (paidAmountEgp <= 0) {
-          tx.delete(invoice.ref)
+          tx.delete(invoiceSnap.ref)
         }
       }
     })

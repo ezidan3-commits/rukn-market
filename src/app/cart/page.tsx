@@ -3,6 +3,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { useCart } from '@/context/CartContext'
+import { useSyncCart } from '@/hooks/useSyncCart'
 import { Product, productImageSrc, effectivePrice, hasActiveDiscount } from '@/lib/types'
 
 interface SwipeItemProps {
@@ -131,6 +132,7 @@ function SwipeableCartItem({ product, quantity, onRemove, onDecrement, onIncreme
 
 export default function CartPage() {
   const { items, remove, updateQty, total } = useCart()
+  const { changedIds } = useSyncCart()
 
   const money = (n: number) =>
     n.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 })
@@ -163,6 +165,12 @@ export default function CartPage() {
         <p className="text-xs text-gray-400 mb-3 flex items-center gap-1">
           <span>👆</span> اسحب البطاقة لليسار لحذف المنتج
         </p>
+
+        {changedIds.length > 0 && (
+          <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 font-semibold flex items-center gap-2">
+            <span>⚠️</span> تم تحديث أسعار بعض المنتجات في سلتك لتطابق السعر الحالي.
+          </div>
+        )}
 
         <div className="flex flex-col gap-3">
           {items.map(({ product, quantity }) => (

@@ -1,8 +1,6 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore'
-import { db, ensureAuth } from '@/lib/firebase'
 
 const STATUS_LABEL: Record<string, string> = {
   newOrder:     'أوردر جديد',
@@ -91,10 +89,9 @@ function OrderTimeline({ status }: { status: string }) {
 interface OrderResult {
   id: string
   orderNumber: string
-  customerPhone: string
   status: string
   totalEgp: number
-  createdAt: { seconds: number }
+  createdAt: { seconds: number } | null
   customerName: string
   city: string
   trackingNumber: string
@@ -121,20 +118,15 @@ export default function TrackPage() {
 
     setError(''); setLoading(true); setResult(null)
     try {
-      await ensureAuth()
-      let foundDoc: { id: string; data: () => Omit<OrderResult, 'id'> } | null = null
-      const snap = await getDocs(query(collection(db, 'orders'), where('orderNumber', '==', num), limit(1)))
-      if (!snap.empty) {
-        const d = snap.docs[0]
-        foundDoc = { id: d.id, data: () => d.data() as Omit<OrderResult, 'id'> }
-      } else {
-        const docSnap = await getDoc(doc(db, 'orders', numRaw))
-        if (docSnap.exists()) foundDoc = { id: docSnap.id, data: () => docSnap.data() as Omit<OrderResult, 'id'> }
-      }
-      if (!foundDoc) { setResult('not_found'); return }
-      const data = foundDoc.data()
-      if (data.customerPhone !== ph) { setResult('not_found'); return }
-      setResult({ id: foundDoc.id, ...data })
+      const res = await fetch('/api/orders/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderNumber: numRaw, phone: ph }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? 'حدث خطأ')
+      if (data.result !== 'found') { setResult('not_found'); return }
+      setResult(data.order as OrderResult)
     } catch {
       setError('حدث خطأ، يرجى المحاولة مرة أخرى')
     } finally {
