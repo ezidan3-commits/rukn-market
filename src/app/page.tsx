@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { collection, getDocs, limit, orderBy, query, startAfter, where, type QueryConstraint, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore'
+import { collection, getDocs, limit, query, startAfter, where, type QueryConstraint, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore'
 import ProductCard from '@/components/ProductCard'
 import ScrollRevealGrid from '@/components/ScrollRevealGrid'
 import { useCart } from '@/context/CartContext'
@@ -87,35 +87,46 @@ export default function HomePage() {
     const load = async () => {
       await ensureAuth()
       const streamProgressively = !hasLoadedOnce // only the very first load renders page-by-page
+      // Deliberately no orderBy() here: pairing it with the visibleInMarket
+      // equality filter needs a composite index, and this must keep working
+      // even before that index exists (or if it's ever removed/rebuilt).
+      // The implicit default order is still stable enough for startAfter()
+      // cursor pagination to page through every product exactly once —
+      // final display order is handled client-side by `filtered` anyway.
       let cursor: QueryDocumentSnapshot<DocumentData> | null = null
       let accumulated: Product[] = []
-      for (;;) {
-        if (cancelled) return
-        const constraints: QueryConstraint[] = [
-          where('visibleInMarket', '==', true),
-          orderBy('name'),
-          limit(PAGE_SIZE),
-          ...(cursor ? [startAfter(cursor)] : []),
-        ]
-        const snap = await getDocs(query(collection(db, 'products'), ...constraints))
-        if (cancelled) return
-        const pageList = snap.docs
-          .map(d => ({ id: d.id, ...d.data() } as Product))
-          .filter(p => p.quantity > 0)
-        accumulated = [...accumulated, ...pageList]
+      try {
+        for (;;) {
+          if (cancelled) return
+          const constraints: QueryConstraint[] = [
+            where('visibleInMarket', '==', true),
+            limit(PAGE_SIZE),
+            ...(cursor ? [startAfter(cursor)] : []),
+          ]
+          const snap = await getDocs(query(collection(db, 'products'), ...constraints))
+          if (cancelled) return
+          const pageList = snap.docs
+            .map(d => ({ id: d.id, ...d.data() } as Product))
+            .filter(p => p.quantity > 0)
+          accumulated = [...accumulated, ...pageList]
 
-        // First-ever load: render each page as it arrives for a fast first
-        // paint. Subsequent refreshes (tab refocus): swap the full list in
-        // one atomic update at the end, so the grid never visibly shrinks
-        // back down to one page while the refresh is still in flight.
-        if (streamProgressively) {
-          setProducts(accumulated)
-          syncWithProducts(accumulated)
-          if (!hasLoadedOnce) { setLoading(false); hasLoadedOnce = true }
+          // First-ever load: render each page as it arrives for a fast first
+          // paint. Subsequent refreshes (tab refocus): swap the full list in
+          // one atomic update at the end, so the grid never visibly shrinks
+          // back down to one page while the refresh is still in flight.
+          if (streamProgressively) {
+            setProducts(accumulated)
+            syncWithProducts(accumulated)
+            if (!hasLoadedOnce) { setLoading(false); hasLoadedOnce = true }
+          }
+
+          if (snap.docs.length < PAGE_SIZE) break
+          cursor = snap.docs[snap.docs.length - 1]
         }
-
-        if (snap.docs.length < PAGE_SIZE) break
-        cursor = snap.docs[snap.docs.length - 1]
+      } catch (err) {
+        console.error('[HomePage] product load failed:', err)
+        if (!hasLoadedOnce) { setLoading(false); hasLoadedOnce = true }
+        return
       }
       if (!streamProgressively) {
         setProducts(accumulated)
