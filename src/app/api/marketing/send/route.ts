@@ -5,6 +5,12 @@ import { escapeHtml } from '@/lib/escape-html'
 
 export const runtime = 'nodejs'
 
+// Disabled by request: same reason as /api/marketing/discount-alert — a
+// bulk send bounces for any bad subscriber address, and Gmail's failure
+// notices for each one land straight in the store owner's own inbox.
+// Flip back to true to re-enable — see the same note in /api/orders.
+const SEND_CAMPAIGN_EMAILS = false
+
 interface CampaignBody {
   subject: string
   body: string
@@ -73,6 +79,10 @@ export async function POST(request: Request) {
   }
   if (subject.length > 160 || message.length > 10_000) {
     return NextResponse.json({ error: 'محتوى الحملة أطول من الحد المسموح' }, { status: 400 })
+  }
+
+  if (!SEND_CAMPAIGN_EMAILS) {
+    return NextResponse.json({ sent: 0, skipped: true, message: 'إرسال الحملات معطّل حاليًا' })
   }
 
   // Read from dedicated subscribers collection

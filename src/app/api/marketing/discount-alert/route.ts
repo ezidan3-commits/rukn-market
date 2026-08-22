@@ -5,6 +5,12 @@ import { escapeHtml } from '@/lib/escape-html'
 
 export const runtime = 'nodejs'
 
+// Disabled by request: a single bulk send can bounce for several
+// subscribers at once, and Gmail's delivery-failure notices for each one
+// were landing repeatedly in the store owner's own inbox. Flip back to
+// true to re-enable — see the same note in /api/orders.
+const SEND_DISCOUNT_ALERT_EMAILS = false
+
 interface DiscountAlertBody {
   productId: string
   productName: string
@@ -92,6 +98,10 @@ export async function POST(request: Request) {
   }
   if (!Number.isFinite(discountPercent) || discountPercent <= 0 || discountPercent > 100) {
     return NextResponse.json({ error: 'نسبة خصم غير صحيحة' }, { status: 400 })
+  }
+
+  if (!SEND_DISCOUNT_ALERT_EMAILS) {
+    return NextResponse.json({ sent: 0, skipped: true })
   }
 
   const db = getAdminDb()
