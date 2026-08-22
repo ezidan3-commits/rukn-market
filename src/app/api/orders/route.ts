@@ -29,6 +29,9 @@ function toFlutterPaymentMethod(method: PaymentMethod): string {
 
 export const runtime = 'nodejs'
 
+// See usage below — kept as a single flag so re-enabling later is a one-line change.
+const SEND_CUSTOMER_CONFIRMATION_EMAIL = false
+
 type OrderRequestItem = {
   productId: string
   quantity: number
@@ -258,7 +261,16 @@ export async function POST(request: Request) {
       }
     }
 
-    if (customerEmail) {
+    // Disabled by request: Gmail sends an automated bounce/delivery-failure
+    // notification straight to GMAIL_USER's own inbox whenever a customer's
+    // email turns out to be invalid/undeliverable, and it was landing in the
+    // store owner's personal inbox repeatedly (a single bad address can
+    // trigger more than one such notice — an initial "delayed" warning and
+    // a later "failed" one). Flip SEND_CUSTOMER_CONFIRMATION_EMAIL back to
+    // true to re-enable once that's acceptable (e.g. after moving to a
+    // dedicated sending mailbox, or a transactional provider like Resend
+    // that reports bounces via webhook instead of emailing the sender).
+    if (SEND_CUSTOMER_CONFIRMATION_EMAIL && customerEmail) {
       try {
         await sendOrderConfirmationEmail({
           customerName: data.customerName,

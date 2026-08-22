@@ -5,6 +5,12 @@ import { logServerError } from '@/lib/log-server-error'
 
 export const runtime = 'nodejs'
 
+// Disabled by request: this can fire up to 5x per order (once per status
+// transition), and Gmail's bounce/delivery-failure notices for any bad
+// customer address were landing repeatedly in the store owner's own inbox.
+// Flip back to true to re-enable — see the same note in /api/orders.
+const SEND_CUSTOMER_STATUS_EMAIL = false
+
 const NOTIFY_STATUSES = ['preparing', 'readyToShip', 'shipped', 'delivered', 'cancelled']
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -43,6 +49,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     } catch { /* user deleted or not found */ }
 
     if (!customerEmail) return NextResponse.json({ ok: true, skipped: true })
+    if (!SEND_CUSTOMER_STATUS_EMAIL) return NextResponse.json({ ok: true, skipped: true })
 
     await sendStatusEmail({
       customerName,
