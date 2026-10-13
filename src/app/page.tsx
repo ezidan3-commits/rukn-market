@@ -7,7 +7,8 @@ import ProductCard from '@/components/ProductCard'
 import ScrollRevealGrid from '@/components/ScrollRevealGrid'
 import { useCart } from '@/context/CartContext'
 import { db, ensureAuth } from '@/lib/firebase'
-import { Product, ProductCategory, productImageSrc, effectivePrice, hasActiveDiscount } from '@/lib/types'
+import { Product, ProductCategory, effectivePrice, hasActiveDiscount } from '@/lib/types'
+import { useProductImage } from '@/lib/productImages'
 import { DRAFT_KEY, type DraftItem, type EditOrderDraft } from '@/lib/edit-order'
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
 
@@ -350,7 +351,6 @@ export default function HomePage() {
               {showDropdown && searchDropdownResults.length > 0 && (
                 <div className="absolute top-full right-0 left-0 mt-1 bg-white border border-gold/30 rounded-xl shadow-xl z-50 overflow-hidden">
                   {searchDropdownResults.map(p => {
-                    const img = productImageSrc(p)
                     return (
                       <Link
                         key={p.id}
@@ -359,16 +359,7 @@ export default function HomePage() {
                         className="flex items-center gap-3 px-3 py-2.5 hover:bg-cream transition-colors"
                       >
                         <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gold/20">
-                          {img ? (
-                            img.startsWith('data:') ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={img} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <Image src={img} alt="" width={40} height={40} className="object-cover w-full h-full" />
-                            )
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-navy/30 text-lg">📦</div>
-                          )}
+                          <SearchResultThumb product={p} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-navy font-bold text-sm truncate">{p.name}</p>
@@ -561,5 +552,18 @@ export default function HomePage() {
         <p className="text-xs text-gray-400 mt-3">جميع الحقوق محفوظة © 2026</p>
       </footer>
     </div>
+  )
+}
+
+function SearchResultThumb({ product }: { product: Product }) {
+  const img = useProductImage(product)
+  if (!img) {
+    return <div className="w-full h-full flex items-center justify-center text-navy/30 text-lg">📦</div>
+  }
+  return img.startsWith('data:') ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={img} alt="" className="w-full h-full object-cover" />
+  ) : (
+    <Image src={img} alt="" width={40} height={40} className="object-cover w-full h-full" />
   )
 }

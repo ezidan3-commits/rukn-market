@@ -19,6 +19,13 @@ service cloud.firestore {
       allow create, update, delete: if isStaff();
     }
 
+    // Product photos, one document per product ({base64, version}). Kept
+    // out of /products so loading the catalog doesn't pull every image.
+    match /productImages/{productId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isStaff();
+    }
+
     match /productCategories/{categoryId} {
       allow read: if signedIn();
       allow create, update, delete: if isStaff();
@@ -68,6 +75,14 @@ service cloud.firestore {
 
     match /customerNotes/{noteId} {
       allow read, create, update, delete: if isStaff();
+    }
+
+    // Permanent customer book of the staff app (name/phone/city/address).
+    // Customers outlive their orders (old orders are pruned), and are never
+    // deleted.
+    match /customers/{customerId} {
+      allow read, create, update: if isStaff();
+      allow delete: if false;
     }
 
     match /analytics/{docId} {

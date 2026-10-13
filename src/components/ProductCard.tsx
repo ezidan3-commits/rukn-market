@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useCart } from '@/context/CartContext'
 import { useToast } from '@/context/ToastContext'
-import { Product, productImageSrc, effectivePrice, hasActiveDiscount } from '@/lib/types'
+import { Product, effectivePrice, hasActiveDiscount } from '@/lib/types'
+import { useProductImage } from '@/lib/productImages'
 
 function ProductFallbackIcon({ size = 'w-14 h-14' }: { size?: string }) {
   return (
@@ -25,7 +26,7 @@ export default function ProductCard({ product, editOrderMode = false, draftQty =
   const { add, items } = useCart()
   const { showToast } = useToast()
   const inCart = items.find(i => i.product.id === product.id)
-  const imgSrc = productImageSrc(product)
+  const imgSrc = useProductImage(product)
   const [justAdded, setJustAdded] = useState(false)
   const [liked, setLiked] = useState(false)
 

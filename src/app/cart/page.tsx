@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useRef, useState } from 'react'
 import { useCart } from '@/context/CartContext'
 import { useSyncCart } from '@/hooks/useSyncCart'
-import { Product, productImageSrc, effectivePrice, hasActiveDiscount } from '@/lib/types'
+import { Product, effectivePrice, hasActiveDiscount } from '@/lib/types'
+import { useProductImage } from '@/lib/productImages'
 
 interface SwipeItemProps {
   product: Product
@@ -22,7 +23,7 @@ function SwipeableCartItem({ product, quantity, onRemove, onDecrement, onIncreme
   const isDragging = useRef(false)
   const THRESHOLD = 90
 
-  const imgSrc = productImageSrc(product)
+  const imgSrc = useProductImage(product)
 
   function onTouchStart(e: React.TouchEvent) {
     startX.current = e.touches[0].clientX

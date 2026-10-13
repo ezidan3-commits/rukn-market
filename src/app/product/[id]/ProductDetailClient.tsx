@@ -9,6 +9,7 @@ import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
 import { db, ensureAuth } from '@/lib/firebase'
 import { Product, productImageSrc, productImageSources, effectivePrice, hasActiveDiscount } from '@/lib/types'
+import { useProductImageSources } from '@/lib/productImages'
 import { useRecentlyViewed } from '@/hooks/useRecentlyViewed'
 
 function StockAlertButton({ productId }: { productId: string }) {
@@ -80,7 +81,7 @@ export default function ProductDetailClient({ id }: { id: string }) {
 
   const cartItem = items.find(i => i.product.id === id)
   const qty = cartItem?.quantity ?? 0
-  const images = product ? productImageSources(product) : []
+  const images = useProductImageSources(product)
   const activeImage = selectedImage || images[0] || ''
 
   const { addItem: addToRecent } = useRecentlyViewed(id)
